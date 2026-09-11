@@ -252,28 +252,31 @@ def main(argv=None):
            "hub": socket.gethostname(), "previous_run": prev.get("now"), "previous_run_kind": prev.get("run")}
     manifest = {"written_at": run["now"], "inputs": {}}
 
+    def step(name):
+        print(f"collector: {name} ...", file=sys.stderr, flush=True)
+
     def put(name, text, status="ok", detail=""):
         (ctx / name).write_text(text)
         manifest["inputs"][name] = {"status": status, "bytes": len(text.encode()), "detail": detail}
 
     put("run.json", json.dumps(run, indent=1))
-    sessions = collect_sessions(now)
+    step("sessions"); sessions = collect_sessions(now)
     put("sessions.json", json.dumps(sessions, indent=1), detail=f"{sum(1 for s in sessions if s['status']=='live')} live")
-    put("memory.md", collect_memory(now))
-    gh_text, gh_status = collect_github()
+    step("memory"); put("memory.md", collect_memory(now))
+    step("github"); gh_text, gh_status = collect_github()
     put("github.md", gh_text, gh_status)
-    put("briefs.md", collect_briefs())
-    dl = collect_downloads(now)
+    step("briefs"); put("briefs.md", collect_briefs())
+    step("downloads"); dl = collect_downloads(now)
     put("downloads.md", dl, "blocked" if dl.startswith("(~/Downloads") else "ok")
-    sat_text, sat_status = collect_satellite(repo)
+    step("satellite"); sat_text, sat_status = collect_satellite(repo)
     put("satellite.md", sat_text, sat_status)
-    rc, so, se = sh([sys.executable, str(repo / "bin" / "ics_events.py"), "--hours", "48"], timeout=90)
+    step("ics"); rc, so, se = sh([sys.executable, str(repo / "bin" / "ics_events.py"), "--hours", "48"], timeout=90)
     try:
         ics = json.loads(so) if so.strip() else {"events": [], "errors": [se.strip()[:200]], "status": "failed"}
     except json.JSONDecodeError:
         ics = {"events": [], "errors": [f"unparseable: {so[:120]}"], "status": "failed"}
     put("ics-calendar.json", json.dumps(ics, indent=1, ensure_ascii=False), ics.get("status", "failed"), f"{len(ics.get('events', []))} events")
-    watchers = collect_watchers(repo)
+    step("watchers"); watchers = collect_watchers(repo)
     put("watchers.json", json.dumps(watchers, indent=1), detail=", ".join(f"{k}={v['status']}" for k, v in watchers.items()))
     snaps = sorted(glob.glob(str(repo / "data" / "snapshots" / "*.json")), key=os.path.getmtime)
     put("previous-board.json", Path(snaps[-1]).read_text() if snaps else "{}", "ok" if snaps else "none")
