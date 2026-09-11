@@ -5,6 +5,7 @@
 #   bin/command-board --collect-only # just refresh context/ (no model calls)
 #   bin/command-board --skip-publish # phases up to the snapshot; no Drive upload
 #   bin/command-board --dry-run      # print the phase A command and exit
+#   bin/command-board --publish-only # re-run phase B on the existing context/board.doc.json
 # Why local, not a cloud routine: cloud routines cannot see this Mac's Claude sessions, memory, repos, or
 # the read-only watcher tokens. Honesty rule: a failed run must notify, never be silent.
 set -uo pipefail
@@ -31,6 +32,11 @@ CMD_B=(claude -p "$(cat "$CFG/prompt-publish.md")" --model "$BOARD_MODEL" --outp
 if [ "${1:-}" = "--dry-run" ]; then printf '%q ' "${CMD_A[@]}" | cut -c1-300; echo " …"; exit 0; fi
 
 log "command-board START ($RUN run, model $BOARD_MODEL)"
+if [ "${1:-}" = "--publish-only" ]; then
+  [ -s "$CTX/board.doc.json" ] || fail "no context/board.doc.json to publish"
+  timeout_run 480 "${CMD_B[@]}" >>"$LOG" 2>&1; rc=$?; [ "$rc" = 0 ] || fail "phase B (publish) rc=$rc"
+  grep -q "DRIVE_FILE_ID=" "$LOG" || fail "phase B did not report a Drive file id"; log "command-board OK (publish-only)"; exit 0
+fi
 # 1. Collect deterministic context (also pulls satellite bundles).
 python3 "$BOARD_REPO/bin/collect_local.py" "$BOARD_REPO" >>"$LOG" 2>&1 || fail "collector failed"
 [ "${1:-}" = "--collect-only" ] && { log "collect-only done"; exit 0; }
