@@ -1,0 +1,120 @@
+{
+  "schema": 1,
+  "owner": "Jordan Example",
+  "lines": [
+    {
+      "id": "acme",
+      "name": "Acme Consulting",
+      "role": "Principal",
+      "signals": {
+        "email_people": [
+          "Priya",
+          "Sam Okafor"
+        ],
+        "email_domains": [
+          "acme-consulting.example"
+        ],
+        "keywords": [
+          "Acme",
+          "proposal",
+          "SOW",
+          "invoice"
+        ],
+        "slack_sources": [
+          "acme:*"
+        ],
+        "repos": [
+          "jordan-example/acme-tools"
+        ],
+        "local_repos": [
+          "~/Documents/GitHub/acme-tools"
+        ],
+        "notes": "Consulting practice. Slack via a watcher source once registered (docs/slack-source-setup.md)."
+      }
+    },
+    {
+      "id": "orchard",
+      "name": "Orchard Rentals",
+      "role": "Owner-operator",
+      "signals": {
+        "email_people": [
+          "Dana"
+        ],
+        "email_domains": [
+          "orchardrentals.example"
+        ],
+        "keywords": [
+          "Orchard",
+          "booking",
+          "guest",
+          "turnover"
+        ],
+        "repos": [],
+        "notes": "Short-term rental property. Calendar and email only."
+      }
+    },
+    {
+      "id": "civic",
+      "name": "Civic Data Co-op",
+      "role": "Board member",
+      "signals": {
+        "email_people": [],
+        "email_domains": [
+          "civicdata.example"
+        ],
+        "keywords": [
+          "co-op",
+          "grant",
+          "board meeting"
+        ],
+        "teams_sources": [
+          "civic:*"
+        ],
+        "outlook": true,
+        "repos": [],
+        "notes": "Runs on Microsoft 365; read via watchers/msgraph_watch.py (docs/msgraph-setup.md)."
+      }
+    },
+    {
+      "id": "personal",
+      "name": "Personal Projects",
+      "role": "Self",
+      "signals": {
+        "email_people": [],
+        "email_domains": [],
+        "keywords": [
+          "resume",
+          "taxes",
+          "trip",
+          "side project"
+        ],
+        "repos": [
+          "jordan-example/side-project"
+        ],
+        "notes": "Anything that is yours alone."
+      }
+    }
+  ],
+  "calendars": [
+    {
+      "id": "primary",
+      "name": "Personal (connected account)",
+      "line": null
+    },
+    {
+      "id": "jordan@acme-consulting.example",
+      "name": "Acme work calendar",
+      "line": "acme",
+      "note": "shared into the connected account with 'See all event details'"
+    }
+  ],
+  "calendars_note": "Ids come from the Calendar connector's list_calendars. A calendar shared as free/busy only yields blocks without titles.",
+  "ics_feeds": [
+    {
+      "name": "civic",
+      "line": "civic",
+      "env_var": "CIVIC_CAL_ICS",
+      "note": "Outlook 'publish calendar' link; the URL lives in ~/.config/command-board/env and is read by bin/ics_events.py"
+    }
+  ]
+}

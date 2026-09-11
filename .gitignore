@@ -1,0 +1,16 @@
+# Runtime state and anything that could carry secrets stays out of git.
+context/
+*.log
+.DS_Store
+__pycache__/
+*.pyc
+# Local-only pointers (Drive file ids, run stamps)
+.state/
+# Your real configuration (copy the .example files and edit)
+config/lines.json
+config/persona.md
+config/repos.json
+data/snapshots/*
+!data/snapshots/.gitkeep
+data/satellite/*
+!data/satellite/.gitkeep

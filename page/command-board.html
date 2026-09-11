@@ -1,0 +1,287 @@
+<title>Command Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #EEF1F4; --surface: #FFFFFF; --surface-2: #F6F8FA; --line: #D6DCE2;
+    --ink: #16202A; --muted: #5B6673; --faint: #8A95A0;
+    --accent: #0F6E68; --accent-ink: #FFFFFF;
+    --needs: #B54708; --needs-soft: #FBEADB; --wait: #4E5BA6; --wait-soft: #E6E9F7;
+    --move: #1D7A4C; --move-soft: #DDF1E5; --park: #7A838C; --park-soft: #ECEFF2;
+    --shadow: 0 1px 2px rgba(22,32,42,.06), 0 4px 14px rgba(22,32,42,.06);
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0F1418; --surface: #182028; --surface-2: #1F2932; --line: #2C3843;
+      --ink: #E6EBEF; --muted: #97A3AE; --faint: #6C7883;
+      --accent: #3FB5AC; --accent-ink: #0B1513;
+      --needs: #F2A65A; --needs-soft: #3A2A18; --wait: #98A4EA; --wait-soft: #232A44;
+      --move: #5CC489; --move-soft: #163224; --park: #8A96A1; --park-soft: #242D35;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0F1418; --surface: #182028; --surface-2: #1F2932; --line: #2C3843;
+    --ink: #E6EBEF; --muted: #97A3AE; --faint: #6C7883;
+    --accent: #3FB5AC; --accent-ink: #0B1513;
+    --needs: #F2A65A; --needs-soft: #3A2A18; --wait: #98A4EA; --wait-soft: #232A44;
+    --move: #5CC489; --move-soft: #163224; --park: #8A96A1; --park-soft: #242D35;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.45 "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; }
+  a { color: var(--accent); }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 14px 56px; }
+  header.top { position: sticky; top: 0; z-index: 5; background: var(--ground); padding: 14px 0 10px; border-bottom: 1px solid var(--line); }
+  .top-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  h1 { margin: 0; font: 600 22px/1.1 "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif; letter-spacing: .01em; text-wrap: balance; }
+  .meta { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; color: var(--muted); font: 500 12px/1.4 "IBM Plex Mono", ui-monospace, Menlo, monospace; }
+  .meta .stale { color: var(--needs); }
+  .total { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--needs-soft); color: var(--needs); font: 600 13px/1 "IBM Plex Sans Condensed", sans-serif; letter-spacing: .02em; text-transform: uppercase; white-space: nowrap; }
+  .total b { font: 600 15px/1 "IBM Plex Mono", monospace; }
+  .refresh { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 12px; cursor: pointer; min-height: 36px; color: var(--muted); font-size: 13px; }
+  .refresh:hover, .refresh:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+  .refresh[disabled] { opacity: .6; cursor: default; }
+  main { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; }
+  .status { padding: 18px 16px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); color: var(--muted); }
+  .status h2 { margin: 0 0 6px; font: 600 16px/1.3 "IBM Plex Sans Condensed", sans-serif; color: var(--ink); }
+  .status code { font: 500 12px "IBM Plex Mono", monospace; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+  .skeleton { height: 64px; border-radius: var(--radius); background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  .line { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .line-head { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; text-align: left; padding: 14px 16px; border: 0; background: transparent; cursor: pointer; min-height: 56px; }
+  .line-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .line-name { font: 600 17px/1.2 "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif; letter-spacing: .005em; }
+  .line-headline { grid-column: 1; color: var(--muted); font-size: 13px; line-height: 1.4; }
+  .line-headline.empty { color: var(--faint); font-style: italic; }
+  .chips { grid-column: 2; grid-row: 1 / span 2; display: flex; align-items: center; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font: 600 12px/1 "IBM Plex Mono", monospace; }
+  .chip.needs { background: var(--needs-soft); color: var(--needs); } .chip.wait { background: var(--wait-soft); color: var(--wait); }
+  .chip.move { background: var(--move-soft); color: var(--move); } .chip.park { background: var(--park-soft); color: var(--park); }
+  .chev { width: 18px; height: 18px; color: var(--faint); transition: transform .18s ease; flex: none; }
+  .line[open] .chev { transform: rotate(180deg); }
+  .items { display: none; flex-direction: column; gap: 8px; padding: 0 10px 12px; border-top: 1px solid var(--line); background: var(--surface-2); }
+  .line[open] .items { display: flex; padding-top: 10px; }
+  .card { position: relative; background: var(--surface); border-radius: 10px; padding: 12px 14px 12px 18px; box-shadow: 0 1px 1px rgba(0,0,0,.04); transition: opacity .25s; }
+  .card::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 4px; border-radius: 4px; background: var(--park); }
+  .card.needs_you::before { background: var(--needs); } .card.waiting::before { background: var(--wait); } .card.moving::before { background: var(--move); }
+  .card.done { opacity: .45; }
+  .card-top { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font: 500 11.5px/1 "IBM Plex Mono", monospace; color: var(--muted); }
+  .tag { padding: 3px 7px; border-radius: 5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+  .tag.needs_you { background: var(--needs-soft); color: var(--needs); } .tag.waiting { background: var(--wait-soft); color: var(--wait); }
+  .tag.moving { background: var(--move-soft); color: var(--move); } .tag.parked { background: var(--park-soft); color: var(--park); }
+  .due { color: var(--needs); font-weight: 600; }
+  .card h3 { margin: 8px 0 4px; font: 600 15.5px/1.3 "IBM Plex Sans", sans-serif; text-wrap: balance; }
+  .card p { margin: 0; color: var(--ink); font-size: 14px; line-height: 1.5; max-width: 62ch; }
+  .card-foot { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+  .card-foot a { text-decoration: none; font-weight: 500; }
+  .card-foot a:hover { text-decoration: underline; }
+  .sessions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .sess { display: inline-flex; align-items: baseline; gap: 5px; padding: 3px 8px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); font: 500 11.5px/1.3 "IBM Plex Mono", monospace; color: var(--ink); max-width: 100%; }
+  .sess .m { color: var(--faint); }
+  .sess .fp { color: var(--muted); font-family: "IBM Plex Sans", sans-serif; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 34ch; }
+  .handle { margin-left: auto; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; min-height: 34px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--accent); }
+  .handle:hover, .handle:focus-visible { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); outline: none; }
+  .handle.undo { color: var(--muted); }
+  .empty { color: var(--faint); font-style: italic; padding: 6px 8px; font-size: 13.5px; }
+  footer { margin-top: 18px; color: var(--muted); font-size: 12.5px; }
+  footer details { background: var(--surface); border-radius: 10px; padding: 8px 12px; box-shadow: var(--shadow); }
+  footer summary { cursor: pointer; font-weight: 500; color: var(--ink); }
+  footer ul { margin: 8px 0 4px; padding-left: 18px; }
+  footer li { margin: 3px 0; font: 400 12px/1.5 "IBM Plex Mono", monospace; }
+  .ok { color: var(--move); } .bad { color: var(--needs); } .na { color: var(--faint); }
+  .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--ink); color: var(--ground); padding: 10px 16px; border-radius: 999px; font-size: 13.5px; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: opacity .2s; max-width: 92vw; }
+  .toast.show { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .chev, .card, .toast, .skeleton { transition: none; animation: none; } }
+  @media (max-width: 480px) { .line-head { grid-template-columns: 1fr; } .chips { grid-column: 1; grid-row: auto; } .sess .fp { max-width: 22ch; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="top-row">
+      <div>
+        <h1>Command Board</h1>
+        <div class="meta" id="meta"><span>Loading your board</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex:none">
+        <span class="total" id="total" hidden>Needs you <b id="totalN">0</b></span>
+        <button class="refresh" id="refresh" type="button" title="Re-read the newest board from Google Drive">Refresh</button>
+      </div>
+    </div>
+  </header>
+  <main id="main">
+    <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+  </main>
+  <footer id="foot"></footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  const DEMO_BOARD = {"schema": 1, "generated_at": "2026-09-11T07:02:00-04:00", "run": "am", "hub": "hub-mac", "handled_applied": ["acme-invoice-q3"], "lines": [{"id": "acme", "name": "Acme Consulting", "headline": "Proposal v3 is in Sam's court; the September invoice cleared.", "counts": {"needs_you": 2, "waiting": 1, "moving": 1, "parked": 0}, "items": [{"id": "acme-sow-signoff", "state": "needs_you", "title": "Sign off on the Q4 statement of work", "synopsis": "Priya sent the final SOW at 6:40 this morning with the two pricing edits you asked for. Nothing else is blocking the signature. Sam wants it back before Thursday's steering call.", "source_url": "https://mail.example/thread/1", "source_kind": "email", "owner": "you", "due": "2026-09-12", "updated": "2026-09-11T06:40:00-04:00", "sessions": [{"name": "acme-tools-4f", "machine": "hub-mac", "first_prompt": "draft the Q4 SOW from the discovery notes"}]}, {"id": "acme-steering-prep", "state": "needs_you", "title": "Prep the steering-call deck", "synopsis": "Thursday 10:00 with Sam and two of his directors. The August metrics are in the shared sheet; the deck template from July still applies.", "source_url": "https://calendar.example/event/2", "source_kind": "calendar", "owner": "you", "due": "2026-09-11", "updated": "2026-09-10T18:00:00-04:00", "sessions": []}, {"id": "acme-proposal-v3", "state": "waiting", "title": "Proposal v3 with Sam's team", "synopsis": "Sent Tuesday. Sam replied that legal has it and expects comments by Friday. No action until then.", "source_url": "https://mail.example/thread/3", "source_kind": "email", "owner": "them:Sam", "due": null, "updated": "2026-09-09T14:12:00-04:00", "sessions": []}, {"id": "acme-tools-refactor", "state": "moving", "title": "Reporting pipeline refactor", "synopsis": "A session on the MacBook is rewriting the export step behind a feature flag. Tests green as of last night; nothing needed from you.", "source_url": "https://github.com/jordan-example/acme-tools/pull/41", "source_kind": "github", "owner": "claude", "due": null, "updated": "2026-09-10T23:10:00-04:00", "sessions": [{"name": "acme-tools-9c", "machine": "laptop", "first_prompt": "refactor the export step behind a flag, test first"}]}]}, {"id": "orchard", "name": "Orchard Rentals", "headline": "Full through the weekend; one guest question open.", "counts": {"needs_you": 1, "waiting": 0, "moving": 0, "parked": 1}, "items": [{"id": "orchard-guest-parking", "state": "needs_you", "title": "Answer the Saturday guest about parking", "synopsis": "The guest arriving Saturday asked whether a second car fits. Dana suggested the side lot. A one-line reply closes it.", "source_url": "https://mail.example/thread/5", "source_kind": "email", "owner": "you", "due": "2026-09-12", "updated": "2026-09-11T05:55:00-04:00", "sessions": []}, {"id": "orchard-deck-repair", "state": "parked", "title": "Deck repair quote", "synopsis": "Two quotes in hand; decision deferred until after peak season ends in October.", "source_url": null, "source_kind": "note", "owner": "you", "due": "2026-10-15", "updated": "2026-08-30T10:00:00-04:00", "sessions": []}]}, {"id": "civic", "name": "Civic Data Co-op", "headline": "Board packet lands Friday; grant report is drafted.", "counts": {"needs_you": 0, "waiting": 1, "moving": 1, "parked": 0}, "items": [{"id": "civic-grant-report", "state": "moving", "title": "Grant report draft", "synopsis": "Lee Park is finishing the narrative section; you already supplied the numbers. Due to the funder on the 20th.", "source_url": "https://teams.example/chat/7", "source_kind": "teams", "owner": "them:Lee Park", "due": "2026-09-20", "updated": "2026-09-10T16:30:00-04:00", "sessions": []}, {"id": "civic-board-packet", "state": "waiting", "title": "Board packet from the secretary", "synopsis": "Expected Friday. Read it before the Tuesday meeting; nothing to do until it arrives.", "source_url": null, "source_kind": "calendar", "owner": "them:secretary", "due": "2026-09-15", "updated": "2026-09-09T09:00:00-04:00", "sessions": []}]}, {"id": "personal", "name": "Personal Projects", "headline": "Side project shipped its first release.", "counts": {"needs_you": 0, "waiting": 0, "moving": 1, "parked": 0}, "items": [{"id": "personal-side-project-v1", "state": "moving", "title": "Side project v1 published", "synopsis": "The release went out last night. Next step is writing the short launch note; no deadline.", "source_url": "https://github.com/jordan-example/side-project/releases/tag/v1.0.0", "source_kind": "github", "owner": "you", "due": null, "updated": "2026-09-10T22:45:00-04:00", "sessions": [{"name": "side-project-2a", "machine": "laptop", "first_prompt": "cut the v1 release and draft the notes"}]}]}], "run_health": [{"input": "gmail", "status": "ok", "detail": "4 searches, 11 threads reviewed"}, {"input": "calendar", "status": "ok", "detail": "2 calendars, 6 events in 48h"}, {"input": "watchers", "status": "ok", "detail": "slack=ok, msgraph=ok"}, {"input": "satellite", "status": "ok", "detail": "bundle from laptop at 06:41"}, {"input": "github", "status": "ok", "detail": "2 open PRs"}, {"input": "memory", "status": "ok", "detail": "3 recently updated notes"}]};
+  const DEMO = new URLSearchParams(location.search).has("demo");
+  const SERVER = "Google Drive";   // connector DISPLAY name (the publish step rewrites the manifest to this)
+  const DATA_TITLE = "command-board-data";
+  const HANDLED_TITLE = "command-board-handled";
+  const STATES = ["needs_you", "waiting", "moving", "parked"];
+  const LABEL = { needs_you: "Needs you", waiting: "Waiting on them", moving: "Moving", parked: "Parked" };
+  const CHIP = { needs_you: "needs", waiting: "wait", moving: "move", parked: "park" };
+  const $ = (id) => document.getElementById(id);
+  const main = $("main"), meta = $("meta"), foot = $("foot"), toast = $("toast");
+  let board = null, mcp = null, pendingHandled = [], flushTimer = null;
+
+  // ---------- storage (per-viewer conveniences only) ----------
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("cb." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem("cb." + k, JSON.stringify(v)); } catch {} },
+  };
+  const openLines = new Set(store.get("open", []));
+  let handledLocal = store.get("handled", {});   // id -> ISO time handled on this device
+
+  // ---------- helpers ----------
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const unescapeDoc = (t) => t.replace(/\\([\s\S])/g, "$1");   // the Doc text export escapes punctuation and doubles backslashes
+  const fmtWhen = (iso) => { const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
+  const ago = (iso) => { const ms = Date.now() - new Date(iso).getTime(); if (isNaN(ms)) return ""; const h = ms / 36e5; if (h < 1) return `${Math.max(1, Math.round(h * 60))} min ago`; if (h < 48) return `${Math.round(h)} h ago`; return `${Math.round(h / 24)} d ago`; };
+  const shortMachine = (m) => (m || "").replace(/\.local$/, "");
+  function showToast(msg, ms = 2600) { toast.textContent = msg; toast.classList.add("show"); clearTimeout(showToast.t); showToast.t = setTimeout(() => toast.classList.remove("show"), ms); }
+  function statusCard(title, html) { main.innerHTML = `<div class="status"><h2>${esc(title)}</h2>${html}</div>`; }
+
+  // ---------- data ----------
+  function errorCopy(e) {
+    const code = e && e.code;
+    switch (code) {
+      case "needs_reauth": return ["Google Drive needs to be reconnected", "<p>Reconnect Google Drive in claude.ai Settings → Connectors, then press Refresh.</p>"];
+      case "server_not_connected": return ["Google Drive is not connected", "<p>Add the Google Drive connector in claude.ai Settings → Connectors (the same Google account the hub publishes to), then press Refresh.</p>"];
+      case "selection_required": return ["Choose a Google Drive connector", "<p>More than one Google Drive connector is attached. Pick the one the hub publishes to when Claude asks, then press Refresh.</p>"];
+      case "not_in_manifest": return ["Drive access was declined for this page", "<p>This page only reads and writes documents named <code>command-board-data</code> and <code>command-board-handled</code>. Allow Google Drive for this page to load the board.</p>"];
+      case "blocked_by_policy": case "approval_required": return ["Drive access is blocked by policy", `<p>Code <code>${esc(code)}</code>. An organization policy is blocking this page's Drive reads.</p>`];
+      case "tool_error": return ["Google Drive reported an error", `<p>${esc(e.message || "")}</p>`];
+      default: return ["Could not load the board", `<p>${esc(e && e.message ? e.message : String(e))}${code ? ` <code>${esc(code)}</code>` : ""}</p><p>Press Refresh to try again.</p>`];
+    }
+  }
+  async function callWithRetry(tool, input, refresh) {
+    const opts = { cache: { staleTime: 0, refresh: !!refresh } };
+    try { return await mcp.callTool(SERVER, tool, input, opts); }
+    catch (e) {
+      if (e && e.retryable) { await new Promise((r) => setTimeout(r, Math.min(e.retryAfterMs || 1500 + Math.random() * 1500, 60000))); return mcp.callTool(SERVER, tool, input, opts); }
+      throw e;
+    }
+  }
+  const payloadOf = (r) => (r && r.payload != null) ? r.payload : (r && r.content && r.content[0] && r.content[0].text) || null;
+
+  async function loadBoard(refresh) {
+    $("refresh").disabled = true;
+    if (DEMO) { board = DEMO_BOARD; render(); showToast("Demo data: a fictional board, not live"); $("refresh").disabled = false; return; }
+    if (!board) main.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+    try {
+      if (!mcp) mcp = await claude.use("mcp");
+      if (!mcp) { statusCard("Open this page inside Claude", "<p>The board reads your Google Drive through your own claude.ai connector, so it only loads when opened from claude.ai (web or the Claude app). A copy of the latest board also lands in <code>~/Downloads/command-board/board-latest.md</code> on the hub Mac.</p>"); return; }
+      const res = await callWithRetry("search_files", { query: `title = '${DATA_TITLE}' and owner = 'me'`, pageSize: 10, excludeContentSnippets: true }, refresh);
+      const p = payloadOf(res);
+      const files = ((typeof p === "string" ? JSON.parse(p) : p) || {}).files || [];
+      files.sort((a, b) => String(b.createdTime).localeCompare(String(a.createdTime)));
+      if (!files.length) { statusCard("No board published yet", "<p>The hub has not published a <code>command-board-data</code> document to this Google account yet. Run <code>bin/command-board</code> on the hub Mac, or wait for the 07:00 / 17:00 run.</p>"); return; }
+      let lastErr = null;
+      for (const f of files.slice(0, 3)) {
+        try {
+          const r = await callWithRetry("read_file_content", { fileId: f.id }, refresh);
+          const q = payloadOf(r);
+          const text = typeof q === "string" ? (JSON.parse(q).fileContent ?? q) : (q && q.fileContent) || "";
+          const parsed = JSON.parse(unescapeDoc(text));
+          if (parsed.schema !== 1 || !Array.isArray(parsed.lines)) throw new Error("unexpected board shape");
+          board = parsed; board._file = f; render(); return;
+        } catch (e) { lastErr = e; }
+      }
+      if (board) { showToast("Newest board file unreadable; showing the previous one"); render(); }
+      else { const [t, h] = errorCopy(lastErr); statusCard(t, h); }
+    } catch (e) {
+      const [t, h] = errorCopy(e);
+      if (board) { showToast(t); render(); } else statusCard(t, h);
+    } finally { $("refresh").disabled = false; }
+  }
+
+  // ---------- handled write-back ----------
+  function markHandled(item, card, btn) {
+    const at = new Date().toISOString();
+    handledLocal[item.id] = at; store.set("handled", handledLocal);
+    pendingHandled.push({ id: item.id, at });
+    card.classList.add("done"); btn.textContent = "Undo"; btn.classList.add("undo");
+    btn.onclick = () => { delete handledLocal[item.id]; store.set("handled", handledLocal); pendingHandled = pendingHandled.filter((h) => h.id !== item.id); card.classList.remove("done"); btn.textContent = "Handled"; btn.classList.remove("undo"); btn.onclick = () => markHandled(item, card, btn); };
+    clearTimeout(flushTimer); flushTimer = setTimeout(flushHandled, 4000);
+    updateTotals();
+  }
+  async function flushHandled() {
+    if (DEMO) { pendingHandled = []; showToast("Demo: handled marks are not saved"); return; }
+    if (!pendingHandled.length || !mcp) return;
+    const batch = pendingHandled.splice(0);
+    try {
+      await mcp.callTool(SERVER, "create_file", { title: HANDLED_TITLE, contentMimeType: "text/plain", textContent: JSON.stringify({ handled: batch, from: "command-board page" }) }, { cache: false });
+      showToast(`${batch.length} item${batch.length > 1 ? "s" : ""} marked handled; the next refresh run applies it`);
+    } catch (e) {
+      const [t] = errorCopy(e);
+      showToast(`Could not save handled marks: ${t}`, 5000);
+      pendingHandled.push(...batch);       // keep for a later gesture; never auto-retry a write
+    }
+  }
+  window.addEventListener("pagehide", () => { if (pendingHandled.length) flushHandled(); });
+
+  // ---------- render ----------
+  function updateTotals() {
+    const n = board.lines.reduce((s, l) => s + l.items.filter((i) => i.state === "needs_you" && !handledLocal[i.id]).length, 0);
+    $("totalN").textContent = n; $("total").hidden = false;
+  }
+  function render() {
+    // Local handled marks older than the board are cleared: the hub has had its chance to apply them.
+    const gen = new Date(board.generated_at).getTime();
+    for (const [id, at] of Object.entries(handledLocal)) if (new Date(at).getTime() < gen) delete handledLocal[id];
+    store.set("handled", handledLocal);
+    const stale = (Date.now() - gen) > 16 * 36e5;
+    meta.innerHTML = `<span>${esc((board.run || "").toUpperCase())} run</span><span>refreshed ${esc(fmtWhen(board.generated_at))}</span><span class="${stale ? "stale" : ""}">${esc(ago(board.generated_at))}${stale ? " · stale" : ""}</span>`;
+    updateTotals();
+    main.innerHTML = "";
+    for (const line of board.lines) {
+      const visible = line.items.filter((i) => !handledLocal[i.id]);
+      const counts = Object.fromEntries(STATES.map((s) => [s, visible.filter((i) => i.state === s).length]));
+      const sec = document.createElement("section"); sec.className = "line"; if (openLines.has(line.id)) sec.setAttribute("open", "");
+      const chips = STATES.filter((s) => counts[s]).map((s) => `<span class="chip ${CHIP[s]}" title="${LABEL[s]}">${counts[s]} ${esc(LABEL[s].split(" ")[0].toLowerCase())}</span>`).join("");
+      sec.innerHTML = `
+        <button class="line-head" type="button" aria-expanded="${openLines.has(line.id)}">
+          <span class="line-name">${esc(line.name)}</span>
+          <span class="chips">${chips || '<span class="chip park">quiet</span>'}<svg class="chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8l5 5 5-5"/></svg></span>
+          <span class="line-headline ${line.headline ? "" : "empty"}">${esc(line.headline || "Nothing new this run")}</span>
+        </button>
+        <div class="items"></div>`;
+      const head = sec.querySelector(".line-head"), items = sec.querySelector(".items");
+      head.onclick = () => { const isOpen = sec.hasAttribute("open"); if (isOpen) { sec.removeAttribute("open"); openLines.delete(line.id); } else { sec.setAttribute("open", ""); openLines.add(line.id); } head.setAttribute("aria-expanded", String(!isOpen)); store.set("open", [...openLines]); };
+      if (!visible.length) items.innerHTML = '<div class="empty">Nothing tracked on this line right now.</div>';
+      for (const it of visible) items.appendChild(card(it));
+      main.appendChild(sec);
+    }
+    const health = (board.run_health || []).map((h) => `<li><span class="${h.status === "ok" ? "ok" : (h.status === "failed" ? "bad" : "na")}">${esc(h.input)}: ${esc(h.status)}</span>${h.detail ? " · " + esc(h.detail) : ""}</li>`).join("");
+    foot.innerHTML = `<details><summary>Run health · published by ${esc(board.hub || "the hub")}${board.handled_applied && board.handled_applied.length ? ` · ${board.handled_applied.length} handled mark${board.handled_applied.length > 1 ? "s" : ""} applied` : ""}</summary><ul>${health || "<li>No run health recorded.</li>"}</ul></details>`;
+  }
+  function card(it) {
+    const el = document.createElement("article"); el.className = `card ${esc(it.state)}`;
+    const owner = it.owner && it.owner.startsWith("them:") ? `with ${esc(it.owner.slice(5))}` : (it.owner === "claude" ? "Claude is on it" : "");
+    const sessions = (it.sessions || []).map((s) => `<span class="sess"><span>${esc(s.name)}</span>${s.machine ? `<span class="m">${esc(shortMachine(s.machine))}</span>` : ""}${s.first_prompt ? `<span class="fp" title="${esc(s.first_prompt)}">${esc(s.first_prompt)}</span>` : ""}</span>`).join("");
+    el.innerHTML = `
+      <div class="card-top"><span class="tag ${esc(it.state)}">${LABEL[it.state] || esc(it.state)}</span>${it.due ? `<span class="due">due ${esc(it.due)}</span>` : ""}${owner ? `<span>${owner}</span>` : ""}</div>
+      <h3>${esc(it.title)}</h3>
+      <p>${esc(it.synopsis)}</p>
+      ${sessions ? `<div class="sessions">${sessions}</div>` : ""}
+      <div class="card-foot">${it.source_url ? `<a href="${esc(it.source_url)}" target="_blank" rel="noopener">Source (${esc(it.source_kind || "link")})</a>` : `<span>${esc(it.source_kind || "")}</span>`}${it.updated ? `<span>updated ${esc(fmtWhen(it.updated))}</span>` : ""}</div>`;
+    if (it.state === "needs_you" || it.state === "waiting") {
+      const btn = document.createElement("button"); btn.type = "button"; btn.className = "handle"; btn.textContent = "Handled";
+      btn.onclick = () => markHandled(it, el, btn);
+      el.querySelector(".card-foot").appendChild(btn);
+    }
+    return el;
+  }
+
+  $("refresh").onclick = () => loadBoard(true);
+  loadBoard(false);
+})();
+</script>

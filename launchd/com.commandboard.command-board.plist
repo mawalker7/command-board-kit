@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.commandboard.command-board</string>
+  <key>ProgramArguments</key><array><string>__HOME__/Documents/GitHub/command-board-kit/bin/command-board</string></array>
+  <!-- Every day 07:00 and 17:00 local. launchd fires a missed interval on wake, unlike cron. -->
+  <key>StartCalendarInterval</key><array>
+    <dict><key>Hour</key><integer>7</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>0</integer></dict>
+  </array>
+  <!-- Pinned to US Eastern so stamps and the AM/PM decision never follow a travelling Mac's clock. -->
+  <key>EnvironmentVariables</key><dict><key>TZ</key><string>America/New_York</string></dict>
+  <key>RunAtLoad</key><false/>
+  <key>StandardOutPath</key><string>__HOME__/Library/Logs/command-board/launchd.out.log</string>
+  <key>StandardErrorPath</key><string>__HOME__/Library/Logs/command-board/launchd.err.log</string>
+</dict></plist>

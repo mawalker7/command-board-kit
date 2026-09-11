@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# satellite-sync — runs on the NON-hub Mac at 06:40 and 16:40: bundle local context, commit, push.
+# The hub pulls this repo before each board run, so the bundle must be pushed before 07:00 / 17:00.
+set -uo pipefail
+export TZ="${TZ:-America/New_York}"   # US Eastern everywhere, regardless of the machine's clock
+export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:/Library/Frameworks/Python.framework/Versions/3.14/bin:/usr/bin:/bin"
+REPO="${BOARD_REPO:-$HOME/Documents/GitHub/command-board-kit}"
+LOG_DIR="$HOME/Library/Logs/command-board"; mkdir -p "$LOG_DIR"; LOG="$LOG_DIR/satellite-$(date +%F-%H%M).log"
+notify() { osascript -e "display notification \"$2\" with title \"$1\"" >/dev/null 2>&1 || true; }
+log() { echo "[$(date -u +%FT%TZ)] $*" | tee -a "$LOG"; }
+cd "$REPO" || { notify "Satellite sync FAILED" "repo missing at $REPO"; exit 1; }
+log "satellite-sync START on $(hostname)"
+git pull --ff-only -q >>"$LOG" 2>&1 || log "warning: pull failed (continuing)"
+python3 bin/satellite_bundle.py "$REPO" >>"$LOG" 2>&1 || { log "bundle failed"; notify "Satellite sync FAILED" "bundle step — see $LOG"; exit 1; }
+git add data/satellite >>"$LOG" 2>&1
+if git diff --cached --quiet; then log "nothing new to push"; exit 0; fi
+git commit -qm "satellite bundle $(hostname) $(date +%F-%H%M)" >>"$LOG" 2>&1 || { notify "Satellite sync FAILED" "commit — see $LOG"; exit 1; }
+git push -q >>"$LOG" 2>&1 || { notify "Satellite sync FAILED" "push — see $LOG"; exit 1; }
+log "satellite-sync OK"

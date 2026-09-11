@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# command-board — twice-daily cross-venture status board, run headless via Claude Code on the hub Mac.
+# Installed by launchd (launchd/com.commandboard.command-board.plist, 07:00 + 17:00 daily). Manual:
+#   bin/command-board                # full run: collect → summarize (phase A) → sanitize → publish (phase B)
+#   bin/command-board --collect-only # just refresh context/ (no model calls)
+#   bin/command-board --skip-publish # phases up to the snapshot; no Drive upload
+#   bin/command-board --dry-run      # print the phase A command and exit
+# Why local, not a cloud routine: cloud routines cannot see this Mac's Claude sessions, memory, repos, or
+# the read-only watcher tokens. Honesty rule: a failed run must notify, never be silent.
+set -uo pipefail
+export TZ="${TZ:-America/New_York}"   # US Eastern everywhere, regardless of the machine's clock
+export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:/Library/Frameworks/Python.framework/Versions/3.14/bin:/usr/bin:/bin"
+export BOARD_REPO="${BOARD_REPO:-$HOME/Documents/GitHub/command-board-kit}"
+export BOARD_MODEL="${BOARD_MODEL:-sonnet}"
+CTX="$BOARD_REPO/context"; CFG="$BOARD_REPO/config"; SNAP="$BOARD_REPO/data/snapshots"
+LOG_DIR="$HOME/Library/Logs/command-board"; mkdir -p "$LOG_DIR" "$SNAP" "$HOME/Downloads/command-board" "$CTX"
+STAMP="$(date +%F-%H%M)"; RUN="$( [ "$(date +%H)" -lt 12 ] && echo am || echo pm )"; LOG="$LOG_DIR/$STAMP.log"
+notify() { osascript -e "display notification \"$2\" with title \"$1\"" >/dev/null 2>&1 || true; }
+log() { echo "[$(date -u +%FT%TZ)] $*" | tee -a "$LOG"; }
+fail() { log "command-board FAILED: $*"; notify "Command board FAILED" "$* — see $LOG"; exit 1; }
+timeout_run() { local secs=$1; shift; perl -e 'alarm shift; exec @ARGV' "$secs" "$@"; }
+
+TOOLS_A='Read,Glob,Grep,Write,ToolSearch,mcp__claude_ai_Gmail__search_threads,mcp__claude_ai_Gmail__get_thread,mcp__claude_ai_Google_Calendar__list_events,mcp__claude_ai_Slack__slack_search_public_and_private,mcp__claude_ai_Slack__slack_read_channel,mcp__claude_ai_Slack__slack_read_thread,mcp__claude_ai_Google_Drive__search_files,mcp__claude_ai_Google_Drive__read_file_content,mcp__claude_ai_Google_Drive__trash_file'
+TOOLS_B='Read,ToolSearch,Bash(osascript:*),mcp__claude_ai_Google_Drive__create_file,mcp__claude_ai_Google_Drive__search_files,mcp__claude_ai_Google_Drive__read_file_content,mcp__claude_ai_Google_Drive__trash_file'
+
+cd "$CTX" || fail "context dir missing"
+CMD_A=(claude -p "$(cat "$CFG/prompt-hub.md")" --model "$BOARD_MODEL" --output-format text --allowedTools "$TOOLS_A")
+CMD_B=(claude -p "$(cat "$CFG/prompt-publish.md")" --model "$BOARD_MODEL" --output-format text --allowedTools "$TOOLS_B")
+if [ "${1:-}" = "--dry-run" ]; then printf '%q ' "${CMD_A[@]}" | cut -c1-300; echo " …"; exit 0; fi
+
+log "command-board START ($RUN run, model $BOARD_MODEL)"
+# 1. Collect deterministic context (also pulls satellite bundles).
+python3 "$BOARD_REPO/bin/collect_local.py" "$BOARD_REPO" >>"$LOG" 2>&1 || fail "collector failed"
+[ "${1:-}" = "--collect-only" ] && { log "collect-only done"; exit 0; }
+
+# 2. Phase A: summarize into context/board.json. 15-minute wall clock (normal runs take 6-9 min); one retry,
+#    because a single hung connector call (seen 2026-09-11: a Slack read that never returned) can stall a run.
+rm -f "$CTX/board.json"
+for attempt in 1 2; do
+  timeout_run 900 "${CMD_A[@]}" >>"$LOG" 2>&1; rc=$?
+  if [ -s "$CTX/board.json" ]; then break; fi
+  log "phase A attempt $attempt failed (rc=$rc, no board.json)"; rm -f "$CTX/board.json"
+  [ "$attempt" = 2 ] && fail "phase A (summarize) failed twice, last rc=$rc"
+done
+
+# 3. Sanitize → doc-safe JSON + markdown; snapshot to repo, Downloads, and git.
+python3 "$BOARD_REPO/bin/board_sanitize.py" "$CTX/board.json" --lines "$CFG/lines.json" \
+  --out-json "$CTX/board.doc.json" --out-md "$CTX/board.md" >>"$LOG" 2>&1 || fail "board.json failed validation (see log)"
+cp "$CTX/board.doc.json" "$SNAP/$STAMP-$RUN.json"; cp "$CTX/board.md" "$SNAP/$STAMP-$RUN.md"
+cp "$CTX/board.md" "$HOME/Downloads/command-board/board-latest.md"
+ls -t "$SNAP"/*.json 2>/dev/null | tail -n +31 | xargs -I{} sh -c 'rm -f "{}" "${1%.json}.md"' _ {} 2>/dev/null || true
+( cd "$BOARD_REPO" && git add data/snapshots >/dev/null 2>&1 && git commit -qm "snapshot $STAMP $RUN" >/dev/null 2>&1 && git push -q >/dev/null 2>&1 ) || log "warning: snapshot commit/push skipped or failed"
+log "snapshot written: $SNAP/$STAMP-$RUN.json"
+[ "${1:-}" = "--skip-publish" ] && { log "skip-publish done"; exit 0; }
+
+# 4. Phase B: upload to Drive as command-board-data, prune old docs, notify (8-minute wall clock).
+timeout_run 480 "${CMD_B[@]}" >>"$LOG" 2>&1; rc=$?; [ "$rc" = 0 ] || fail "phase B (publish) rc=$rc"
+grep -q "DRIVE_FILE_ID=" "$LOG" || fail "phase B did not report a Drive file id"
+log "command-board OK"
