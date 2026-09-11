@@ -15,7 +15,7 @@ No secrets, no tokens, no `.env` content, no transcripts beyond the first prompt
 ## Steps on this machine
 
 1. Confirm `gh auth status` shows the GitHub user that owns the private board repo.
-2. Clone it if it is not there, then `git pull --ff-only`.
+2. Clone it to `~/.local/share/command-board` (not under `~/Documents`: macOS blocks launchd agents from Documents, Desktop, and Downloads), then `git pull --ff-only`.
 3. Dry-run and read the result: `python3 bin/satellite_bundle.py <repo>` then `sed -n 1,40p data/satellite/$(hostname)/bundle.md`. Check the sessions list matches the windows open on this machine and no line contains a token, key, or email address.
 4. Push once by hand, then install the schedule: `bin/satellite-sync` and `bin/install.sh satellite` (06:40 and 16:40 daily; launchd runs a missed slot on wake).
 5. Verify: `launchctl print gui/$(id -u)/com.commandboard.command-board-satellite | grep -E "state|last exit"` and `git log --oneline -3`.

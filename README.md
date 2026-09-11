@@ -45,6 +45,8 @@ claude.ai artifact page ── viewer's own Drive connector (mcp capability) ─
 
 ## Quick start
 
+**macOS placement rule.** Clone to `~/.local/share/command-board`, not under `~/Documents`, `~/Desktop`, or `~/Downloads`: launchd agents cannot read those folders (Apple's privacy protections), so a scheduled run fails with "Operation not permitted" while a manual run from your terminal works. Keep a symlink in your projects folder if you like. The installer refuses a protected path. For the same reason a scheduled run cannot scan `~/Downloads`; the collector records that as `blocked` instead of failing.
+
 1. Copy `config/lines.example.json` to `config/lines.json`, `config/persona.example.md` to `config/persona.md`, and `config/repos.example.json` to `config/repos.json`; edit for your businesses.
 2. Attach Gmail, Google Calendar, and Google Drive (and optionally Slack) as connectors on your claude.ai account; confirm `claude mcp list` shows them.
 3. `bin/command-board --collect-only`, read `context/`, then a full `bin/command-board`.

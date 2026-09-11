@@ -57,7 +57,7 @@ def main(argv=None):
     if text is None:
         print(f"ERROR: no line {args.line!r} in {board_path}; lines: {[l['id'] for l in board.get('lines', [])]}", file=sys.stderr)
         return 3
-    out = Path(os.path.expanduser(args.out)) if args.out else Path.home() / "Downloads" / "command-board" / f"share-{args.line}-{board.get('generated_at', '')[:10]}.md"
+    out = Path(os.path.expanduser(args.out)) if args.out else Path(__file__).resolve().parent.parent / "out" / f"share-{args.line}-{board.get('generated_at', '')[:10]}.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text)
     print(f"wrote {out} ({len(text)} chars, {args.line} only)")

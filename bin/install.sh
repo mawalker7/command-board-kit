@@ -2,7 +2,8 @@
 # install.sh hub|satellite — install the launchd job for this machine's role.
 set -euo pipefail
 ROLE="${1:-}"; [ "$ROLE" = hub ] || [ "$ROLE" = satellite ] || { echo "usage: bin/install.sh hub|satellite"; exit 2; }
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="$(cd "$(dirname "$0")/.." && pwd -P)"   # physical path: launchd must not traverse ~/Documents
+case "$REPO" in "$HOME/Documents/"*|"$HOME/Desktop/"*|"$HOME/Downloads/"*) echo "ERROR: $REPO is under a macOS-protected folder; launchd agents cannot read it. Clone to ~/.local/share/command-board instead (see README)."; exit 2;; esac
 LABEL="com.commandboard.command-board"; [ "$ROLE" = satellite ] && LABEL="$LABEL-satellite"
 SRC="$REPO/launchd/$LABEL.plist"; DST="$HOME/Library/LaunchAgents/$LABEL.plist"
 mkdir -p "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/command-board"

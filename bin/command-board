@@ -10,10 +10,12 @@
 set -uo pipefail
 export TZ="${TZ:-America/New_York}"   # US Eastern everywhere, regardless of the machine's clock
 export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:/Library/Frameworks/Python.framework/Versions/3.14/bin:/usr/bin:/bin"
-export BOARD_REPO="${BOARD_REPO:-$HOME/Documents/GitHub/command-board-kit}"
+# The working copy lives OUTSIDE ~/Documents and ~/Downloads: macOS blocks launchd agents from those folders (TCC).
+export BOARD_REPO="${BOARD_REPO:-$HOME/.local/share/command-board}"
 export BOARD_MODEL="${BOARD_MODEL:-sonnet}"
 CTX="$BOARD_REPO/context"; CFG="$BOARD_REPO/config"; SNAP="$BOARD_REPO/data/snapshots"
-LOG_DIR="$HOME/Library/Logs/command-board"; mkdir -p "$LOG_DIR" "$SNAP" "$HOME/Downloads/command-board" "$CTX"
+OUT="$BOARD_REPO/out"   # symlink ~/Downloads/command-board to this if you want it in Downloads
+LOG_DIR="$HOME/Library/Logs/command-board"; mkdir -p "$LOG_DIR" "$SNAP" "$OUT" "$CTX"
 STAMP="$(date +%F-%H%M)"; RUN="$( [ "$(date +%H)" -lt 12 ] && echo am || echo pm )"; LOG="$LOG_DIR/$STAMP.log"
 notify() { osascript -e "display notification \"$2\" with title \"$1\"" >/dev/null 2>&1 || true; }
 log() { echo "[$(date -u +%FT%TZ)] $*" | tee -a "$LOG"; }
@@ -47,7 +49,7 @@ done
 python3 "$BOARD_REPO/bin/board_sanitize.py" "$CTX/board.json" --lines "$CFG/lines.json" \
   --out-json "$CTX/board.doc.json" --out-md "$CTX/board.md" >>"$LOG" 2>&1 || fail "board.json failed validation (see log)"
 cp "$CTX/board.doc.json" "$SNAP/$STAMP-$RUN.json"; cp "$CTX/board.md" "$SNAP/$STAMP-$RUN.md"
-cp "$CTX/board.md" "$HOME/Downloads/command-board/board-latest.md"
+cp "$CTX/board.md" "$OUT/board-latest.md"
 ls -t "$SNAP"/*.json 2>/dev/null | tail -n +31 | xargs -I{} sh -c 'rm -f "{}" "${1%.json}.md"' _ {} 2>/dev/null || true
 ( cd "$BOARD_REPO" && git add data/snapshots >/dev/null 2>&1 && git commit -qm "snapshot $STAMP $RUN" >/dev/null 2>&1 && git push -q >/dev/null 2>&1 ) || log "warning: snapshot commit/push skipped or failed"
 log "snapshot written: $SNAP/$STAMP-$RUN.json"

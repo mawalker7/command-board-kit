@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>com.commandboard.command-board-satellite</string>
-  <key>ProgramArguments</key><array><string>__HOME__/Documents/GitHub/command-board-kit/bin/satellite-sync</string></array>
+  <key>ProgramArguments</key><array><string>__HOME__/.local/share/command-board/bin/satellite-sync</string></array>
   <!-- Every day 06:40 and 16:40 local: twenty minutes before the hub run reads the bundle. -->
   <key>StartCalendarInterval</key><array>
     <dict><key>Hour</key><integer>6</integer><key>Minute</key><integer>40</integer></dict>

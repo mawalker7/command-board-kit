@@ -173,9 +173,12 @@ def collect_github():
 
 
 def collect_briefs():
-    d = Path(os.environ.get("BOARD_BRIEFS_DIR", HOME / "Downloads" / "briefs"))
+    d = Path(os.environ.get("BOARD_BRIEFS_DIR", HOME / ".local" / "share" / "briefs"))   # not under ~/Downloads: launchd cannot read it
     parts = []
-    briefs = sorted(glob.glob(str(d / "*-am.md")) + glob.glob(str(d / "*-pm.md")), key=os.path.getmtime, reverse=True)
+    try:
+        briefs = sorted(glob.glob(str(d / "*-am.md")) + glob.glob(str(d / "*-pm.md")), key=os.path.getmtime, reverse=True)
+    except OSError:
+        return "(briefs folder not readable in this context)"
     if briefs:
         parts.append(f"# Latest brief: {Path(briefs[0]).name}\n")
         parts.append(Path(briefs[0]).read_text()[:9_000])
@@ -188,7 +191,10 @@ def collect_briefs():
 
 def collect_downloads(now):
     parts = []
-    files = [p for p in glob.glob(str(HOME / "Downloads" / "*.md")) if now - os.path.getmtime(p) < DAYS3]
+    try:
+        files = [p for p in glob.glob(str(HOME / "Downloads" / "*.md")) if now - os.path.getmtime(p) < DAYS3]
+    except OSError as e:  # launchd agents cannot read ~/Downloads on macOS (TCC)
+        return f"(~/Downloads not readable in this context: {e.__class__.__name__}; deliverables are read only when run from a terminal)"
     for p in sorted(files, key=os.path.getmtime, reverse=True)[:20]:
         parts.append(f"## {Path(p).name} (modified {datetime.fromtimestamp(os.path.getmtime(p)).isoformat(timespec='minutes')})")
         parts.append(Path(p).read_text(errors="replace")[:CAP_HEAD])
@@ -254,7 +260,8 @@ def main(argv=None):
     gh_text, gh_status = collect_github()
     put("github.md", gh_text, gh_status)
     put("briefs.md", collect_briefs())
-    put("downloads.md", collect_downloads(now))
+    dl = collect_downloads(now)
+    put("downloads.md", dl, "blocked" if dl.startswith("(~/Downloads not readable") else "ok")
     sat_text, sat_status = collect_satellite(repo)
     put("satellite.md", sat_text, sat_status)
     rc, so, se = sh([sys.executable, str(repo / "bin" / "ics_events.py"), "--hours", "48"], timeout=90)

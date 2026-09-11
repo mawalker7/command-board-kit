@@ -4,7 +4,8 @@
 set -uo pipefail
 export TZ="${TZ:-America/New_York}"   # US Eastern everywhere, regardless of the machine's clock
 export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:/Library/Frameworks/Python.framework/Versions/3.14/bin:/usr/bin:/bin"
-REPO="${BOARD_REPO:-$HOME/Documents/GitHub/command-board-kit}"
+# Outside ~/Documents: macOS blocks launchd agents from Documents/Downloads (TCC).
+REPO="${BOARD_REPO:-$HOME/.local/share/command-board}"
 LOG_DIR="$HOME/Library/Logs/command-board"; mkdir -p "$LOG_DIR"; LOG="$LOG_DIR/satellite-$(date +%F-%H%M).log"
 notify() { osascript -e "display notification \"$2\" with title \"$1\"" >/dev/null 2>&1 || true; }
 log() { echo "[$(date -u +%FT%TZ)] $*" | tee -a "$LOG"; }

@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>com.commandboard.command-board</string>
-  <key>ProgramArguments</key><array><string>__HOME__/Documents/GitHub/command-board-kit/bin/command-board</string></array>
+  <key>ProgramArguments</key><array><string>__HOME__/.local/share/command-board/bin/command-board</string></array>
   <!-- Every day 07:00 and 17:00 local. launchd fires a missed interval on wake, unlike cron. -->
   <key>StartCalendarInterval</key><array>
     <dict><key>Hour</key><integer>7</integer><key>Minute</key><integer>0</integer></dict>
