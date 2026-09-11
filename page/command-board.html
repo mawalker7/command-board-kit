@@ -278,7 +278,7 @@
   function card(it) {
     const el = document.createElement("article"); el.className = `card ${esc(it.state)}`;
     const owner = it.owner && it.owner.startsWith("them:") ? `with ${esc(it.owner.slice(5))}` : (it.owner === "claude" ? "Claude is on it" : "");
-    const sessions = (it.sessions || []).map((s) => `<span class="sess"><span>${esc(s.name)}</span>${s.machine ? `<span class="m">${esc(shortMachine(s.machine))}</span>` : ""}${s.first_prompt ? `<span class="fp" title="${esc(s.first_prompt)}">${esc(s.first_prompt)}</span>` : ""}</span>`).join("");
+    const sessions = (scope ? [] : (it.sessions || [])).map((s) => `<span class="sess"><span>${esc(s.name)}</span>${s.machine ? `<span class="m">${esc(shortMachine(s.machine))}</span>` : ""}${s.first_prompt ? `<span class="fp" title="${esc(s.first_prompt)}">${esc(s.first_prompt)}</span>` : ""}</span>`).join("");
     el.innerHTML = `
       <div class="card-top"><span class="tag ${esc(it.state)}">${LABEL[it.state] || esc(it.state)}</span>${it.due ? `<span class="due">due ${esc(it.due)}</span>` : ""}${owner ? `<span>${owner}</span>` : ""}</div>
       <h3>${esc(it.title)}</h3>
