@@ -31,6 +31,7 @@ claude.ai artifact page ── viewer's own Drive connector (mcp capability) ─
 | `bin/command-board` | hub wrapper (launchd entry); `--collect-only`, `--skip-publish`, `--dry-run`; 15-minute phase cap with one retry |
 | `bin/collect_local.py` | deterministic context collector |
 | `bin/board_sanitize.py` | schema validation, doc-safe single-line JSON, markdown twin |
+| `bin/board_export.py` | scoped single-line markdown export for anything that leaves your screen |
 | `bin/ics_events.py` | reads published Outlook ICS feeds, expands recurrences, 48-hour window |
 | `bin/satellite_bundle.py`, `bin/satellite-sync` | the second machine's bundle and push |
 | `bin/install.sh hub\|satellite` | installs the launchd job for this machine's role |

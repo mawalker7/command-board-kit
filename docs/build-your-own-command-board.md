@@ -143,6 +143,8 @@ The AI performing summarization should never see raw credentials. It reads the o
 
 Nothing in this system posts, sends, replies, schedules, or deletes anything automatically. An action step later, an auto-reply, an auto-scheduled meeting, is a separate, much more carefully reviewed addition, not a natural extension of the board.
 
+**Entity separation.** Treat a card from one business line appearing in front of someone from another as the same class of defect as an invented fact. The board is built for one pair of eyes: yours. Anything that leaves your device comes from a scoped export of a single line (the page's per-line "Share" view, or `board_export.py --line <id>`), never a whole-board screenshot or the full markdown. Run health, handled ids, and session names never travel with an export, because each of those can name another line's people, deals, or projects. If a client or partner is evaluating how you govern delivery, the tool that demonstrates discipline has to practice it on itself.
+
 ## 8. Operating it
 
 To mark something handled, use whatever feedback mechanism you built in step 7: check a box, flip a toggle, or edit the feedback file directly. The next scheduled run picks it up.

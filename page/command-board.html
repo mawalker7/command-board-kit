@@ -86,6 +86,11 @@
   .handle:hover, .handle:focus-visible { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); outline: none; }
   .handle.undo { color: var(--muted); }
   .empty { color: var(--faint); font-style: italic; padding: 6px 8px; font-size: 13.5px; }
+  .scope-banner { display: none; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 0 2px; padding: 10px 14px; border-radius: 10px; background: var(--wait-soft); color: var(--wait); font: 500 13px/1.4 "IBM Plex Sans", sans-serif; }
+  .scope-banner.on { display: flex; }
+  .scope-banner button { border: 1px solid currentColor; background: transparent; border-radius: 999px; padding: 5px 10px; cursor: pointer; color: inherit; font-size: 12.5px; }
+  .share { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 4px 9px; cursor: pointer; color: var(--faint); font: 500 11.5px/1 "IBM Plex Mono", monospace; }
+  .share:hover, .share:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
   footer { margin-top: 18px; color: var(--muted); font-size: 12.5px; }
   footer details { background: var(--surface); border-radius: 10px; padding: 8px 12px; box-shadow: var(--shadow); }
   footer summary { cursor: pointer; font-weight: 500; color: var(--ink); }
@@ -111,6 +116,7 @@
       </div>
     </div>
   </header>
+  <div class="scope-banner" id="scope" role="status"><span id="scopeText"></span><button type="button" id="scopeExit">Show all lines</button></div>
   <main id="main">
     <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
   </main>
@@ -131,6 +137,7 @@
   const $ = (id) => document.getElementById(id);
   const main = $("main"), meta = $("meta"), foot = $("foot"), toast = $("toast");
   let board = null, mcp = null, pendingHandled = [], flushTimer = null;
+  let scope = null;   // line id when in scoped-share view: only that line renders, nothing cross-entity leaves the screen
 
   // ---------- storage (per-viewer conveniences only) ----------
   const store = {
@@ -230,7 +237,7 @@
 
   // ---------- render ----------
   function updateTotals() {
-    const n = board.lines.reduce((s, l) => s + l.items.filter((i) => i.state === "needs_you" && !handledLocal[i.id]).length, 0);
+    const n = board.lines.filter((l) => !scope || l.id === scope).reduce((s, l) => s + l.items.filter((i) => i.state === "needs_you" && !handledLocal[i.id]).length, 0);
     $("totalN").textContent = n; $("total").hidden = false;
   }
   function render() {
@@ -242,24 +249,29 @@
     meta.innerHTML = `<span>${esc((board.run || "").toUpperCase())} run</span><span>refreshed ${esc(fmtWhen(board.generated_at))}</span><span class="${stale ? "stale" : ""}">${esc(ago(board.generated_at))}${stale ? " · stale" : ""}</span>`;
     updateTotals();
     main.innerHTML = "";
+    const banner = $("scope"); banner.classList.toggle("on", !!scope);
+    if (scope) { const ln = board.lines.find((l) => l.id === scope); $("scopeText").textContent = `Scoped view: ${ln ? ln.name : scope}. Only this line is shown, run health is hidden. Safe to screenshot or share with someone from this line.`; }
     for (const line of board.lines) {
+      if (scope && line.id !== scope) continue;
       const visible = line.items.filter((i) => !handledLocal[i.id]);
       const counts = Object.fromEntries(STATES.map((s) => [s, visible.filter((i) => i.state === s).length]));
-      const sec = document.createElement("section"); sec.className = "line"; if (openLines.has(line.id)) sec.setAttribute("open", "");
+      const sec = document.createElement("section"); sec.className = "line"; if (openLines.has(line.id) || scope) sec.setAttribute("open", "");
       const chips = STATES.filter((s) => counts[s]).map((s) => `<span class="chip ${CHIP[s]}" title="${LABEL[s]}">${counts[s]} ${esc(LABEL[s].split(" ")[0].toLowerCase())}</span>`).join("");
       sec.innerHTML = `
         <button class="line-head" type="button" aria-expanded="${openLines.has(line.id)}">
           <span class="line-name">${esc(line.name)}</span>
-          <span class="chips">${chips || '<span class="chip park">quiet</span>'}<svg class="chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8l5 5 5-5"/></svg></span>
+          <span class="chips">${chips || '<span class="chip park">quiet</span>'}<button type="button" class="share" title="Show only this line, for sharing">Share</button><svg class="chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8l5 5 5-5"/></svg></span>
           <span class="line-headline ${line.headline ? "" : "empty"}">${esc(line.headline || "Nothing new this run")}</span>
         </button>
         <div class="items"></div>`;
       const head = sec.querySelector(".line-head"), items = sec.querySelector(".items");
+      sec.querySelector(".share").onclick = (ev) => { ev.stopPropagation(); scope = line.id; render(); window.scrollTo({ top: 0 }); };
       head.onclick = () => { const isOpen = sec.hasAttribute("open"); if (isOpen) { sec.removeAttribute("open"); openLines.delete(line.id); } else { sec.setAttribute("open", ""); openLines.add(line.id); } head.setAttribute("aria-expanded", String(!isOpen)); store.set("open", [...openLines]); };
       if (!visible.length) items.innerHTML = '<div class="empty">Nothing tracked on this line right now.</div>';
       for (const it of visible) items.appendChild(card(it));
       main.appendChild(sec);
     }
+    if (scope) { foot.innerHTML = ""; return; }
     const health = (board.run_health || []).map((h) => `<li><span class="${h.status === "ok" ? "ok" : (h.status === "failed" ? "bad" : "na")}">${esc(h.input)}: ${esc(h.status)}</span>${h.detail ? " · " + esc(h.detail) : ""}</li>`).join("");
     foot.innerHTML = `<details><summary>Run health · published by ${esc(board.hub || "the hub")}${board.handled_applied && board.handled_applied.length ? ` · ${board.handled_applied.length} handled mark${board.handled_applied.length > 1 ? "s" : ""} applied` : ""}</summary><ul>${health || "<li>No run health recorded.</li>"}</ul></details>`;
   }
@@ -282,6 +294,7 @@
   }
 
   $("refresh").onclick = () => loadBoard(true);
+  $("scopeExit").onclick = () => { scope = null; render(); };
   loadBoard(false);
 })();
 </script>
