@@ -191,6 +191,9 @@ def collect_briefs():
 
 def collect_downloads(now):
     parts = []
+    if os.environ.get("BOARD_NO_DOWNLOADS"):
+        # Under launchd a read of ~/Downloads can BLOCK on a consent prompt that never appears (macOS TCC), not just fail.
+        return "(~/Downloads scan skipped: BOARD_NO_DOWNLOADS is set for scheduled runs; deliverables are read on terminal runs)"
     try:
         files = [p for p in glob.glob(str(HOME / "Downloads" / "*.md")) if now - os.path.getmtime(p) < DAYS3]
     except OSError as e:  # launchd agents cannot read ~/Downloads on macOS (TCC)
@@ -261,7 +264,7 @@ def main(argv=None):
     put("github.md", gh_text, gh_status)
     put("briefs.md", collect_briefs())
     dl = collect_downloads(now)
-    put("downloads.md", dl, "blocked" if dl.startswith("(~/Downloads not readable") else "ok")
+    put("downloads.md", dl, "blocked" if dl.startswith("(~/Downloads") else "ok")
     sat_text, sat_status = collect_satellite(repo)
     put("satellite.md", sat_text, sat_status)
     rc, so, se = sh([sys.executable, str(repo / "bin" / "ics_events.py"), "--hours", "48"], timeout=90)
