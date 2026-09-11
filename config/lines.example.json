@@ -116,5 +116,13 @@
       "env_var": "CIVIC_CAL_ICS",
       "note": "Outlook 'publish calendar' link; the URL lives in ~/.config/command-board/env and is read by bin/ics_events.py"
     }
+  ],
+  "memory_mirrors": [
+    {
+      "project": "acme-tools",
+      "repo": "https://github.com/jordan-example/acme-tools.git",
+      "path": ".claude/memory",
+      "note": "use when a project's memory folder under ~/.claude is a symlink into ~/Documents (unreadable under launchd) and the memory is git-tracked"
+    }
   ]
 }

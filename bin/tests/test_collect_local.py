@@ -30,7 +30,7 @@ class TestPromptExtraction(unittest.TestCase):
         self.assertEqual(cl.project_name("/x/-Users-me-Documents-GitHub-proforma-ai", "/Users/me/Documents/GitHub/proforma-ai"), "proforma-ai")
         with unittest.mock.patch.object(cl.glob, "glob", side_effect=AssertionError("must not list directories")):
             self.assertEqual(cl.project_name("/x/-Users-me-Documents-GitHub-proforma-ai"), "proforma-ai")
-            self.assertEqual(cl.project_name("/x/-Users-me-Documents-GitHub-nexus"), "nexus")
+            self.assertEqual(cl.project_name("/x/-Users-me-Documents-GitHub-acme-tools"), "acme-tools")
             self.assertEqual(cl.project_name("/x/-Users-me-local-share-command-board-context"), "command-board-context")
             self.assertEqual(cl.project_name("/x/-tmp-something-else"), "else")
 
@@ -41,3 +41,38 @@ class TestPromptExtraction(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMemoryMirror(unittest.TestCase):
+    def test_mirror_reads_sparse_clone_and_covers_project(self):
+        import subprocess, tempfile, time
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d); src = d / "src"; src.mkdir()
+            subprocess.run(["git", "init", "-q", src], check=True)
+            (src / ".claude" / "memory").mkdir(parents=True)
+            (src / ".claude" / "memory" / "MEMORY.md").write_text("- [x](x.md) — hook\n")
+            (src / ".claude" / "memory" / "x.md").write_text("fact\n")
+            subprocess.run(["git", "-C", src, "add", "-A"], check=True)
+            subprocess.run(["git", "-C", src, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "m"], check=True)
+            repo = d / "repo"; repo.mkdir()
+            parts = []
+            covered = cl.mirror_memory(repo, {"memory_mirrors": [{"project": "proj", "repo": str(src), "path": ".claude/memory"}]}, time.time(), parts)
+            self.assertEqual(covered, {"proj"})
+            text = "\n".join(parts)
+            self.assertIn("Memory index: proj (git mirror)", text)
+            self.assertIn("hook", text)
+            self.assertIn("Recently updated memory: x.md", text)
+            self.assertTrue((repo / "mirrors" / "proj" / ".git").exists())
+            # second call pulls instead of cloning and still covers
+            parts2 = []
+            self.assertEqual(cl.mirror_memory(repo, {"memory_mirrors": [{"project": "proj", "repo": str(src)}]}, time.time(), parts2), {"proj"})
+
+    def test_mirror_failure_is_reported_not_raised(self):
+        import tempfile, time
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            parts = []
+            covered = cl.mirror_memory(Path(d), {"memory_mirrors": [{"project": "ghost", "repo": str(Path(d) / "missing")}]}, time.time(), parts)
+            self.assertEqual(covered, set())
+            self.assertIn("mirror clone failed", "\n".join(parts))

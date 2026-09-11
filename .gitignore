@@ -14,3 +14,4 @@ data/snapshots/*
 !data/snapshots/.gitkeep
 data/satellite/*
 !data/satellite/.gitkeep
+mirrors/

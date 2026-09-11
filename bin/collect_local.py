@@ -14,6 +14,7 @@ Writes small, bounded files into <repo>/context/ so the summarizing model reads 
   manifest.json       what was written, sizes, per-input status (feeds the board's run_health)
 """
 
+import faulthandler
 import glob
 import json
 import os
@@ -40,6 +41,22 @@ def sh(cmd, timeout=60, cwd=None):
         return 1, "", str(e)
 
 
+PROTECTED = ("Documents", "Desktop", "Downloads")
+
+
+def readable(path):
+    """On scheduled (launchd) runs, refuse paths that resolve into macOS-protected folders: a read there can block
+    forever on a privacy prompt that cannot be shown. Symlinks are the usual trap (e.g. a memory folder that
+    points into a repo under ~/Documents)."""
+    if not os.environ.get("BOARD_SCHEDULED"):
+        return True
+    try:
+        real = Path(path).resolve()
+    except OSError:
+        return False
+    return not any(part in PROTECTED for part in real.parts)
+
+
 def strip_tags(text):
     """Drop leading <tag>…</tag> blocks (ide context, system reminders) and return the human prompt."""
     text = re.sub(r"<(\w[\w-]*)[^>]*>.*?</\1>", " ", text, flags=re.S)
@@ -47,6 +64,8 @@ def strip_tags(text):
 
 
 def first_prompt(jsonl):
+    if not readable(jsonl):
+        return ""
     try:
         with open(jsonl, errors="replace") as fh:
             for line in fh:
@@ -130,14 +149,61 @@ def collect_sessions(now):
     return out
 
 
-def collect_memory(now):
+def mirror_memory(repo, cfg, now, parts):
+    """Read git-tracked memory folders through a sparse clone under <repo>/mirrors/<project>.
+
+    Needed when a project's memory folder under ~/.claude is a symlink into a macOS-protected folder
+    (unreadable on scheduled runs). Returns the set of project names covered. Never prompts for
+    credentials (GIT_TERMINAL_PROMPT=0) and every git call has a timeout.
+    """
+    covered = set()
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+    for m in cfg.get("memory_mirrors", []):
+        project, url, sub = m.get("project"), m.get("repo"), m.get("path", ".claude/memory")
+        if not (project and url):
+            continue
+        dest = repo / "mirrors" / project
+        try:
+            if not (dest / ".git").exists():
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                r = subprocess.run(["git", "clone", "-q", "--depth", "1", "--filter=blob:none", "--sparse", url, str(dest)],
+                                   capture_output=True, text=True, timeout=120, env=env)
+                if r.returncode != 0:
+                    parts.append(f"# Memory index: {project}\n(mirror clone failed: {r.stderr.strip()[:160]})\n")
+                    continue
+                subprocess.run(["git", "-C", str(dest), "sparse-checkout", "set", sub], capture_output=True, text=True, timeout=60, env=env)
+            r = subprocess.run(["git", "-C", str(dest), "pull", "-q", "--ff-only"], capture_output=True, text=True, timeout=90, env=env)
+            note = "" if r.returncode == 0 else f" (mirror pull failed, showing last mirrored state: {r.stderr.strip()[:120]})"
+        except (OSError, subprocess.TimeoutExpired) as e:
+            parts.append(f"# Memory index: {project}\n(mirror unavailable: {type(e).__name__})\n")
+            continue
+        mem = dest / sub
+        idx = mem / "MEMORY.md"
+        parts.append(f"# Memory index: {project} (git mirror{note})\n")
+        parts.append(idx.read_text()[:12_000] if idx.exists() else "(no MEMORY.md in mirror)")
+        fresh = [q for q in glob.glob(str(mem / "*.md")) if not q.endswith("MEMORY.md") and now - os.path.getmtime(q) < DAYS3]
+        for q in sorted(fresh, key=os.path.getmtime, reverse=True)[:12]:
+            parts.append(f"\n## Recently updated memory: {Path(q).name} ({datetime.fromtimestamp(os.path.getmtime(q)).date()})\n")
+            parts.append(Path(q).read_text()[:CAP_FILE])
+        parts.append("\n")
+        covered.add(project)
+    return covered
+
+
+def collect_memory(now, repo=None, cfg=None):
     parts = []
+    covered = mirror_memory(repo, cfg, now, parts) if (repo is not None and cfg) else set()
     for mem in sorted(glob.glob(str(CLAUDE / "projects" / "*" / "memory"))):
         project = project_name(Path(mem).parent)
+        if project in covered:
+            continue  # served by the git mirror above
+        if not readable(mem):
+            parts.append(f"# Memory index: {project}\n(not read on scheduled runs: folder resolves into a macOS-protected location)\n")
+            continue
         idx = Path(mem) / "MEMORY.md"
         parts.append(f"# Memory index: {project}\n")
         parts.append(idx.read_text()[:12_000] if idx.exists() else "(no MEMORY.md)")
-        fresh = [p for p in glob.glob(os.path.join(mem, "*.md")) if not p.endswith("MEMORY.md") and now - os.path.getmtime(p) < DAYS3]
+        fresh = [p for p in glob.glob(os.path.join(mem, "*.md")) if not p.endswith("MEMORY.md") and now - os.path.getmtime(p) < DAYS3 and readable(p)]
         for p in sorted(fresh, key=os.path.getmtime, reverse=True)[:12]:
             parts.append(f"\n## Recently updated memory: {Path(p).name} ({datetime.fromtimestamp(os.path.getmtime(p)).date()})\n")
             parts.append(Path(p).read_text()[:CAP_FILE])
@@ -240,6 +306,9 @@ def collect_watchers(repo):
 
 
 def main(argv=None):
+    # Watchdog: a blocked syscall (e.g. a macOS privacy prompt that cannot be shown under launchd) would hang forever;
+    # after 240 s dump the exact Python line to stderr and exit non-zero so the run fails fast with evidence.
+    faulthandler.dump_traceback_later(240, exit=True, file=sys.stderr)
     repo = Path(argv[0]).resolve() if argv else Path(__file__).resolve().parent.parent
     ctx = repo / "context"
     ctx.mkdir(exist_ok=True)
@@ -262,7 +331,9 @@ def main(argv=None):
     put("run.json", json.dumps(run, indent=1))
     step("sessions"); sessions = collect_sessions(now)
     put("sessions.json", json.dumps(sessions, indent=1), detail=f"{sum(1 for s in sessions if s['status']=='live')} live")
-    step("memory"); put("memory.md", collect_memory(now))
+    cfg_path = repo / "config" / "lines.json"
+    cfg = json.loads(cfg_path.read_text()) if cfg_path.exists() else {}
+    step("memory"); put("memory.md", collect_memory(now, repo, cfg))
     step("github"); gh_text, gh_status = collect_github()
     put("github.md", gh_text, gh_status)
     step("briefs"); put("briefs.md", collect_briefs())
