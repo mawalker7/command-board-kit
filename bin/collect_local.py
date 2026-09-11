@@ -6,7 +6,7 @@ Writes small, bounded files into <repo>/context/ so the summarizing model reads 
   sessions.json       live + recently active Claude Code sessions on this machine (name, cwd, first prompt)
   memory.md           every project memory index + memory files touched in the last 3 days
   github.md           open PRs / review requests / mentions / assigned issues via gh (best effort)
-  briefs.md           newest brief from ~/Downloads/briefs (any other scheduled report you run) + its handled.md
+  briefs.md           newest brief from ~/.local/share/briefs (any other scheduled report you run) + its handled.md
   downloads.md        markdown deliverables in ~/Downloads touched in the last 3 days (head only)
   satellite.md        bundles pushed by the other machine (data/satellite/<host>/bundle.md)
   watchers.json       slack_watch / msgraph_watch --all --consumer board --json (or not_configured)
@@ -72,16 +72,16 @@ def first_prompt(jsonl):
 def project_name(encoded_dir, cwd=""):
     """~/.claude/projects encodes the cwd with '/' as '-'; recover the repo folder name.
 
-    Prefer the live session's cwd; otherwise match the longest known folder under ~/Documents/GitHub
-    that the encoded name ends with; fall back to the last '-' segment.
+    Prefer the live session's cwd. Otherwise derive from the encoded name alone: the segment after the
+    last known code-folder marker. Never lists ~/Documents: under launchd that read blocks on a consent
+    prompt that cannot be shown (macOS TCC).
     """
     if cwd:
         return Path(cwd).name
     name = Path(encoded_dir).name
-    known = sorted((Path(p).name for p in glob.glob(str(HOME / "Documents" / "GitHub" / "*"))), key=len, reverse=True)
-    for k in known:
-        if name.endswith("-" + k) or name == k:
-            return k
+    for marker in ("-GitHub-", "-Projects-", "-src-", "-code-", "-Documents-", "-share-"):
+        if marker in name:
+            return name.split(marker, 1)[1]
     return name.rsplit("-", 1)[-1]
 
 
@@ -191,9 +191,9 @@ def collect_briefs():
 
 def collect_downloads(now):
     parts = []
-    if os.environ.get("BOARD_NO_DOWNLOADS"):
+    if os.environ.get("BOARD_SCHEDULED"):
         # Under launchd a read of ~/Downloads can BLOCK on a consent prompt that never appears (macOS TCC), not just fail.
-        return "(~/Downloads scan skipped: BOARD_NO_DOWNLOADS is set for scheduled runs; deliverables are read on terminal runs)"
+        return "(~/Downloads scan skipped: BOARD_SCHEDULED is set on launchd runs; deliverables are read on terminal runs)"
     try:
         files = [p for p in glob.glob(str(HOME / "Downloads" / "*.md")) if now - os.path.getmtime(p) < DAYS3]
     except OSError as e:  # launchd agents cannot read ~/Downloads on macOS (TCC)

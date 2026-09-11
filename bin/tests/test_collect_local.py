@@ -26,12 +26,13 @@ class TestPromptExtraction(unittest.TestCase):
             self.assertEqual(cl.first_prompt(p), "Validate the plan and build it")
             self.assertEqual(cl.first_prompt(Path(d) / "missing.jsonl"), "")
 
-    def test_project_name_recovers_repo_folder(self):
+    def test_project_name_never_touches_filesystem(self):
         self.assertEqual(cl.project_name("/x/-Users-me-Documents-GitHub-proforma-ai", "/Users/me/Documents/GitHub/proforma-ai"), "proforma-ai")
-        with unittest.mock.patch.object(cl.glob, "glob", return_value=["/Users/me/Documents/GitHub/proforma-ai", "/Users/me/Documents/GitHub/nexus"]):
+        with unittest.mock.patch.object(cl.glob, "glob", side_effect=AssertionError("must not list directories")):
             self.assertEqual(cl.project_name("/x/-Users-me-Documents-GitHub-proforma-ai"), "proforma-ai")
             self.assertEqual(cl.project_name("/x/-Users-me-Documents-GitHub-nexus"), "nexus")
-            self.assertEqual(cl.project_name("/x/-Users-me-Documents-GitHub-something-else"), "else")
+            self.assertEqual(cl.project_name("/x/-Users-me-local-share-command-board-context"), "command-board-context")
+            self.assertEqual(cl.project_name("/x/-tmp-something-else"), "else")
 
     def test_pid_alive_handles_garbage(self):
         self.assertFalse(cl.pid_alive("not-a-pid"))

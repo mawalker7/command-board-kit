@@ -19,12 +19,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import collect_local as cl  # noqa: E402
 
 REPOS_FILE = Path(__file__).resolve().parent.parent / "config" / "repos.json"   # {"repos": ["~/Documents/GitHub/x", ...]}
+PROTECTED = ("Documents", "Desktop", "Downloads")
 
 
 def unpushed(repo_paths):
     out = []
+    scheduled = bool(os.environ.get("BOARD_SCHEDULED"))
     for r in repo_paths:
         p = Path(os.path.expanduser(r))
+        if scheduled and any(part in PROTECTED for part in p.parts):
+            out.append(f"- {p.name}: not checked on scheduled runs (under a macOS-protected folder)")
+            continue
         if not (p / ".git").exists() and not (p / ".git").is_file():
             continue
         rc, branch, _ = cl.sh(["git", "-C", str(p), "rev-parse", "--abbrev-ref", "HEAD"], timeout=20)

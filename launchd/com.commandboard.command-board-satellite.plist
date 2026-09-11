@@ -9,7 +9,7 @@
     <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>40</integer></dict>
   </array>
   <!-- Pinned to US Eastern so stamps and the AM/PM decision never follow a travelling Mac's clock. -->
-  <key>EnvironmentVariables</key><dict><key>TZ</key><string>America/New_York</string><key>BOARD_NO_DOWNLOADS</key><string>1</string></dict>
+  <key>EnvironmentVariables</key><dict><key>TZ</key><string>America/New_York</string><key>BOARD_SCHEDULED</key><string>1</string></dict>
   <key>RunAtLoad</key><false/>
   <key>StandardOutPath</key><string>__HOME__/Library/Logs/command-board/satellite.out.log</string>
   <key>StandardErrorPath</key><string>__HOME__/Library/Logs/command-board/satellite.err.log</string>
