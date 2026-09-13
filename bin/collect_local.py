@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """collect_local.py: deterministic context collector for the command-board hub run (no LLM).
 
+Run by hand ONLY as `BOARD_PEEK=1 python3 bin/collect_local.py <repo>`: peek mode leaves watcher cursors untouched.
+
 Writes small, bounded files into <repo>/context/ so the summarizing model reads instead of explores:
   run.json            run stamp: now, am|pm, hub host, previous run time
   sessions.json       live + recently active Claude Code sessions on this machine (name, cwd, first prompt)
@@ -296,7 +298,9 @@ def collect_watchers(repo):
         if not (cfg_dir / "sources.json").exists() or not script.exists():
             result[name] = {"status": "not_configured", "items": [], "errors": []}
             continue
-        rc, so, se = sh([sys.executable, str(script), "--all", "--consumer", "board", "--json"], timeout=120)
+        # A manual run of this script must never consume the board cursor (that would hide messages from the real run).
+        peek = ["--peek"] if os.environ.get("BOARD_PEEK") else []
+        rc, so, se = sh([sys.executable, str(script), "--all", "--consumer", "board", "--json", *peek], timeout=120)
         try:
             data = json.loads(so) if so.strip() else {"items": [], "errors": [se.strip()]}
         except json.JSONDecodeError:

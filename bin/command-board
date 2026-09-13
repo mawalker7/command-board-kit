@@ -2,7 +2,7 @@
 # command-board — twice-daily cross-venture status board, run headless via Claude Code on the hub Mac.
 # Installed by launchd (launchd/com.commandboard.command-board.plist, 07:00 + 17:00 daily). Manual:
 #   bin/command-board                # full run: collect → summarize (phase A) → sanitize → publish (phase B)
-#   bin/command-board --collect-only # just refresh context/ (no model calls)
+#   bin/command-board --collect-only # just refresh context/ (no model calls; watchers in peek mode, cursors untouched)
 #   bin/command-board --skip-publish # phases up to the snapshot; no Drive upload
 #   bin/command-board --dry-run      # print the phase A command and exit
 #   bin/command-board --publish-only # re-run phase B on the existing context/board.doc.json
@@ -52,6 +52,7 @@ if [ "${1:-}" = "--publish-only" ]; then
   publish || fail "phase B (publish) failed on both models"; log "command-board OK (publish-only)"; exit 0
 fi
 # 1. Collect deterministic context (also pulls satellite bundles).
+[ "${1:-}" = "--collect-only" ] && export BOARD_PEEK=1
 python3 "$BOARD_REPO/bin/collect_local.py" "$BOARD_REPO" >>"$LOG" 2>&1 || fail "collector failed"
 [ "${1:-}" = "--collect-only" ] && { log "collect-only done"; exit 0; }
 
