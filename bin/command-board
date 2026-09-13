@@ -15,7 +15,7 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:/Library/Framewor
 export BOARD_REPO="${BOARD_REPO:-$HOME/.local/share/command-board}"
 # Models: phase A (summarize) on Sonnet; phase B (copy 16 KB verbatim + verify) on Haiku, falling back to Sonnet once.
 # Never an Opus/Fable-class model: this job summarizes from notes, it does not need frontier reasoning.
-export MAX_THINKING_TOKENS="${MAX_THINKING_TOKENS:-3000}"   # this job summarizes from notes; long deliberation only costs money
+export MAX_THINKING_TOKENS="${MAX_THINKING_TOKENS:-1024}"   # model minimum; this job summarizes from notes, and the cap multiplies across ~30 turns
 export BOARD_MODEL="${BOARD_MODEL:-sonnet}"
 export BOARD_MODEL_B="${BOARD_MODEL_B:-haiku}"
 BOARD_MAX_TURNS_A="${BOARD_MAX_TURNS_A:-60}"; BOARD_MAX_TURNS_B="${BOARD_MAX_TURNS_B:-20}"
