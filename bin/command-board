@@ -25,8 +25,14 @@ LOG_DIR="$HOME/Library/Logs/command-board"; mkdir -p "$LOG_DIR" "$SNAP" "$OUT" "
 STAMP="$(date +%F-%H%M)"; RUN="$( [ "$(date +%H)" -lt 12 ] && echo am || echo pm )"; LOG="$LOG_DIR/$STAMP.log"
 notify() { osascript -e "display notification \"$2\" with title \"$1\"" >/dev/null 2>&1 || true; }
 log() { echo "[$(date -u +%FT%TZ)] $*" | tee -a "$LOG"; }
-fail() { log "command-board FAILED: $*"; notify "Command board FAILED" "$* — see $LOG"; exit 1; }
+fail() { log "command-board FAILED: $*"; restore_cursors; notify "Command board FAILED" "$* — see $LOG"; exit 1; }
 timeout_run() { local secs=$1; shift; perl -e 'alarm shift; exec @ARGV' "$secs" "$@"; }
+# Watcher cursors advance when the collector reads; if the run then fails before a board is written, roll them back
+# so the messages are re-read next time (at-least-once delivery into the board).
+CURSOR_FILES=("$HOME/.config/slack-watch/state.json" "$HOME/.config/msgraph-watch/state.json")
+snapshot_cursors() { for f in "${CURSOR_FILES[@]}"; do [ -f "$f" ] && cp -p "$f" "$f.pre-run"; done; }
+restore_cursors() { for f in "${CURSOR_FILES[@]}"; do [ -f "$f.pre-run" ] && { mv -f "$f.pre-run" "$f"; log "rolled back watcher cursor: $f"; }; done; }
+commit_cursors() { for f in "${CURSOR_FILES[@]}"; do rm -f "$f.pre-run"; done; }
 # publish: phase B on the cheap model; if it does not report a file id, once more on the phase A model.
 publish() {
   local mark; mark=$(grep -c "DRIVE_FILE_ID=" "$LOG" 2>/dev/null); mark=${mark:-0}
@@ -53,6 +59,7 @@ if [ "${1:-}" = "--publish-only" ]; then
 fi
 # 1. Collect deterministic context (also pulls satellite bundles).
 [ "${1:-}" = "--collect-only" ] && export BOARD_PEEK=1
+[ -z "${BOARD_PEEK:-}" ] && snapshot_cursors
 python3 "$BOARD_REPO/bin/collect_local.py" "$BOARD_REPO" >>"$LOG" 2>&1 || fail "collector failed"
 [ "${1:-}" = "--collect-only" ] && { log "collect-only done"; exit 0; }
 
@@ -73,7 +80,7 @@ cp "$CTX/board.doc.json" "$SNAP/$STAMP-$RUN.json"; cp "$CTX/board.md" "$SNAP/$ST
 cp "$CTX/board.md" "$OUT/board-latest.md"
 ls -t "$SNAP"/*.json 2>/dev/null | tail -n +31 | xargs -I{} sh -c 'rm -f "{}" "${1%.json}.md"' _ {} 2>/dev/null || true
 ( cd "$BOARD_REPO" && git add data/snapshots >/dev/null 2>&1 && git commit -qm "snapshot $STAMP $RUN" >/dev/null 2>&1 && git push -q >/dev/null 2>&1 ) || log "warning: snapshot commit/push skipped or failed"
-log "snapshot written: $SNAP/$STAMP-$RUN.json"
+log "snapshot written: $SNAP/$STAMP-$RUN.json"; commit_cursors
 [ "${1:-}" = "--skip-publish" ] && { log "skip-publish done"; exit 0; }
 
 # 4. Phase B: upload to Drive as command-board-data, prune old docs, notify (8-minute wall clock).
