@@ -56,11 +56,11 @@ fi
 python3 "$BOARD_REPO/bin/collect_local.py" "$BOARD_REPO" >>"$LOG" 2>&1 || fail "collector failed"
 [ "${1:-}" = "--collect-only" ] && { log "collect-only done"; exit 0; }
 
-# 2. Phase A: summarize into context/board.json. 15-minute wall clock (normal runs take 6-9 min); one retry,
+# 2. Phase A: summarize into context/board.json. 20-minute wall clock (normal runs take 7-12 min; a backlog day can need more); one retry,
 #    because a single hung connector call (seen 2026-09-11: a Slack read that never returned) can stall a run.
 rm -f "$CTX/board.json"
 for attempt in 1 2; do
-  timeout_run 900 "${CMD_A[@]}" >>"$LOG" 2>&1; rc=$?
+  timeout_run 1200 "${CMD_A[@]}" >>"$LOG" 2>&1; rc=$?
   if [ -s "$CTX/board.json" ]; then break; fi
   log "phase A attempt $attempt failed (rc=$rc, no board.json)"; rm -f "$CTX/board.json"
   [ "$attempt" = 2 ] && fail "phase A (summarize) failed twice, last rc=$rc"
