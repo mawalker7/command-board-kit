@@ -29,7 +29,10 @@ from pathlib import Path
 HOME = Path.home()
 CLAUDE = HOME / ".claude"
 DAYS3 = 3 * 86400
-CAP_FILE = 6_000
+DAYS_MEM = 2 * 86400   # memory files count as fresh for 2 days (token budget)
+CAP_FILE = 4_000
+CAP_INDEX = 8_000
+MAX_FRESH = 8
 CAP_HEAD = 2_000
 
 
@@ -180,9 +183,9 @@ def mirror_memory(repo, cfg, now, parts):
         mem = dest / sub
         idx = mem / "MEMORY.md"
         parts.append(f"# Memory index: {project} (git mirror{note})\n")
-        parts.append(idx.read_text()[:12_000] if idx.exists() else "(no MEMORY.md in mirror)")
-        fresh = [q for q in glob.glob(str(mem / "*.md")) if not q.endswith("MEMORY.md") and now - os.path.getmtime(q) < DAYS3]
-        for q in sorted(fresh, key=os.path.getmtime, reverse=True)[:12]:
+        parts.append(idx.read_text()[:CAP_INDEX] if idx.exists() else "(no MEMORY.md in mirror)")
+        fresh = [q for q in glob.glob(str(mem / "*.md")) if not q.endswith("MEMORY.md") and now - os.path.getmtime(q) < DAYS_MEM]
+        for q in sorted(fresh, key=os.path.getmtime, reverse=True)[:MAX_FRESH]:
             parts.append(f"\n## Recently updated memory: {Path(q).name} ({datetime.fromtimestamp(os.path.getmtime(q)).date()})\n")
             parts.append(Path(q).read_text()[:CAP_FILE])
         parts.append("\n")
@@ -202,9 +205,9 @@ def collect_memory(now, repo=None, cfg=None):
             continue
         idx = Path(mem) / "MEMORY.md"
         parts.append(f"# Memory index: {project}\n")
-        parts.append(idx.read_text()[:12_000] if idx.exists() else "(no MEMORY.md)")
-        fresh = [p for p in glob.glob(os.path.join(mem, "*.md")) if not p.endswith("MEMORY.md") and now - os.path.getmtime(p) < DAYS3 and readable(p)]
-        for p in sorted(fresh, key=os.path.getmtime, reverse=True)[:12]:
+        parts.append(idx.read_text()[:CAP_INDEX] if idx.exists() else "(no MEMORY.md)")
+        fresh = [p for p in glob.glob(os.path.join(mem, "*.md")) if not p.endswith("MEMORY.md") and now - os.path.getmtime(p) < DAYS_MEM and readable(p)]
+        for p in sorted(fresh, key=os.path.getmtime, reverse=True)[:MAX_FRESH]:
             parts.append(f"\n## Recently updated memory: {Path(p).name} ({datetime.fromtimestamp(os.path.getmtime(p)).date()})\n")
             parts.append(Path(p).read_text()[:CAP_FILE])
         parts.append("\n")
@@ -351,6 +354,16 @@ def main(argv=None):
     put("watchers.json", json.dumps(watchers, indent=1), detail=", ".join(f"{k}={v['status']}" for k, v in watchers.items()))
     snaps = sorted(glob.glob(str(repo / "data" / "snapshots" / "*.json")), key=os.path.getmtime)
     put("previous-board.json", Path(snaps[-1]).read_text() if snaps else "{}", "ok" if snaps else "none")
+    # One concatenated file: the summarizer reads it in a single turn (each extra turn re-reads the growing context).
+    order = ["run.json", "sessions.json", "memory.md", "github.md", "briefs.md", "downloads.md", "satellite.md", "ics-calendar.json", "watchers.json", "previous-board.json"]
+    bundle = []
+    for name in order:
+        f = ctx / name
+        if f.exists():
+            bundle.append(f"\n\n===== {name} =====\n")
+            bundle.append(f.read_text())
+    (ctx / "bundle.md").write_text("".join(bundle))
+    manifest["inputs"]["bundle.md"] = {"status": "ok", "bytes": sum(len(b.encode()) for b in bundle), "detail": "all inputs concatenated"}
     (ctx / "manifest.json").write_text(json.dumps(manifest, indent=1))
     last.write_text(json.dumps(run))
     for k, v in manifest["inputs"].items():

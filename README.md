@@ -57,6 +57,6 @@ Tests: `python3 -m unittest discover -s . -p 'test_*.py'`. Python 3.11+ (uses `z
 
 ## What it costs and what it is not
 
-Two Sonnet-class runs per cycle, typically a few cents to a few tens of cents a day. It is not a task manager and not real time: it runs on a schedule and tells you what is going on; you act in the original tools.
+Measured on a busy inbox with Sonnet 4.6: roughly 2 to 6 US dollars per cycle before the turn and thinking caps, so budget a few dollars a day and check the numbers in your own transcripts; a single daily run, a smaller memory window, or Haiku for the publish step all cut it. It is not a task manager and not real time: it runs on a schedule and tells you what is going on; you act in the original tools.
 
 MIT licensed. Built by Matt Walker as personal tooling; the private instance runs with real configuration in a separate repo.

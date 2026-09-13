@@ -153,7 +153,7 @@ To add a new source, repeat step 3: connect it the same way as the others, add i
 
 If a run fails, check the collector and watcher output first, since they run without AI and are the most likely place for a broken login or expired token to show up as a loud, obvious error. If those succeeded but the board looks wrong or empty, check that the summarizer received all the context files; a common failure is a file path or folder name changing.
 
-Expect a small, predictable cost for the summarizer step if you use a paid AI API, generally a few cents to a few tens of cents per day depending on volume. The collector and watcher scripts cost nothing beyond what you already pay for the underlying services.
+Expect a small, predictable cost for the summarizer step if you use a paid AI API, generally a few dollars a day on a Sonnet-class model with a busy inbox (measure it from your own run transcripts) depending on volume. The collector and watcher scripts cost nothing beyond what you already pay for the underlying services.
 
 ## 9. Common failure modes
 

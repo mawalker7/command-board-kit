@@ -13,7 +13,12 @@ export TZ="${TZ:-America/New_York}"   # US Eastern everywhere, regardless of the
 export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:/Library/Frameworks/Python.framework/Versions/3.14/bin:/usr/bin:/bin"
 # The working copy lives OUTSIDE ~/Documents and ~/Downloads: macOS blocks launchd agents from those folders (TCC).
 export BOARD_REPO="${BOARD_REPO:-$HOME/.local/share/command-board}"
+# Models: phase A (summarize) on Sonnet; phase B (copy 16 KB verbatim + verify) on Haiku, falling back to Sonnet once.
+# Never an Opus/Fable-class model: this job summarizes from notes, it does not need frontier reasoning.
+export MAX_THINKING_TOKENS="${MAX_THINKING_TOKENS:-3000}"   # this job summarizes from notes; long deliberation only costs money
 export BOARD_MODEL="${BOARD_MODEL:-sonnet}"
+export BOARD_MODEL_B="${BOARD_MODEL_B:-haiku}"
+BOARD_MAX_TURNS_A="${BOARD_MAX_TURNS_A:-60}"; BOARD_MAX_TURNS_B="${BOARD_MAX_TURNS_B:-20}"
 CTX="$BOARD_REPO/context"; CFG="$BOARD_REPO/config"; SNAP="$BOARD_REPO/data/snapshots"
 OUT="$BOARD_REPO/out"   # symlink ~/Downloads/command-board to this if you want it in Downloads
 LOG_DIR="$HOME/Library/Logs/command-board"; mkdir -p "$LOG_DIR" "$SNAP" "$OUT" "$CTX"
@@ -22,20 +27,29 @@ notify() { osascript -e "display notification \"$2\" with title \"$1\"" >/dev/nu
 log() { echo "[$(date -u +%FT%TZ)] $*" | tee -a "$LOG"; }
 fail() { log "command-board FAILED: $*"; notify "Command board FAILED" "$* — see $LOG"; exit 1; }
 timeout_run() { local secs=$1; shift; perl -e 'alarm shift; exec @ARGV' "$secs" "$@"; }
+# publish: phase B on the cheap model; if it does not report a file id, once more on the phase A model.
+publish() {
+  local mark; mark=$(grep -c "DRIVE_FILE_ID=" "$LOG" 2>/dev/null); mark=${mark:-0}
+  timeout_run 480 "${CMD_B[@]}" >>"$LOG" 2>&1 || log "phase B on $BOARD_MODEL_B exited non-zero"
+  [ "$(grep -c "DRIVE_FILE_ID=" "$LOG")" -gt "$mark" ] && return 0
+  log "phase B on $BOARD_MODEL_B did not publish; retrying on $BOARD_MODEL"
+  timeout_run 480 "${CMD_B_FALLBACK[@]}" >>"$LOG" 2>&1 || log "phase B on $BOARD_MODEL exited non-zero"
+  [ "$(grep -c "DRIVE_FILE_ID=" "$LOG")" -gt "$mark" ]
+}
 
-TOOLS_A='Read,Glob,Grep,Write,ToolSearch,mcp__claude_ai_Gmail__search_threads,mcp__claude_ai_Gmail__get_thread,mcp__claude_ai_Google_Calendar__list_events,mcp__claude_ai_Slack__slack_search_public_and_private,mcp__claude_ai_Slack__slack_read_channel,mcp__claude_ai_Slack__slack_read_thread,mcp__claude_ai_Google_Drive__search_files,mcp__claude_ai_Google_Drive__read_file_content,mcp__claude_ai_Google_Drive__trash_file'
+TOOLS_A='Read,Write,ToolSearch,mcp__claude_ai_Gmail__search_threads,mcp__claude_ai_Gmail__get_thread,mcp__claude_ai_Google_Calendar__list_events,mcp__claude_ai_Slack__slack_search_public_and_private,mcp__claude_ai_Slack__slack_read_channel,mcp__claude_ai_Slack__slack_read_thread,mcp__claude_ai_Google_Drive__search_files,mcp__claude_ai_Google_Drive__read_file_content,mcp__claude_ai_Google_Drive__trash_file'
 TOOLS_B='Read,ToolSearch,Bash(osascript:*),mcp__claude_ai_Google_Drive__create_file,mcp__claude_ai_Google_Drive__search_files,mcp__claude_ai_Google_Drive__read_file_content,mcp__claude_ai_Google_Drive__trash_file'
 
 cd "$CTX" || fail "context dir missing"
-CMD_A=(claude -p "$(cat "$CFG/prompt-hub.md")" --model "$BOARD_MODEL" --output-format text --allowedTools "$TOOLS_A")
-CMD_B=(claude -p "$(cat "$CFG/prompt-publish.md")" --model "$BOARD_MODEL" --output-format text --allowedTools "$TOOLS_B")
+CMD_A=(claude -p "$(cat "$CFG/prompt-hub.md")" --model "$BOARD_MODEL" --max-turns "$BOARD_MAX_TURNS_A" --output-format text --allowedTools "$TOOLS_A")
+CMD_B=(claude -p "$(cat "$CFG/prompt-publish.md")" --model "$BOARD_MODEL_B" --max-turns "$BOARD_MAX_TURNS_B" --output-format text --allowedTools "$TOOLS_B")
+CMD_B_FALLBACK=(claude -p "$(cat "$CFG/prompt-publish.md")" --model "$BOARD_MODEL" --max-turns "$BOARD_MAX_TURNS_B" --output-format text --allowedTools "$TOOLS_B")
 if [ "${1:-}" = "--dry-run" ]; then printf '%q ' "${CMD_A[@]}" | cut -c1-300; echo " …"; exit 0; fi
 
-log "command-board START ($RUN run, model $BOARD_MODEL)"
+log "command-board START ($RUN run, models A=$BOARD_MODEL B=$BOARD_MODEL_B)"
 if [ "${1:-}" = "--publish-only" ]; then
   [ -s "$CTX/board.doc.json" ] || fail "no context/board.doc.json to publish"
-  timeout_run 480 "${CMD_B[@]}" >>"$LOG" 2>&1; rc=$?; [ "$rc" = 0 ] || fail "phase B (publish) rc=$rc"
-  grep -q "DRIVE_FILE_ID=" "$LOG" || fail "phase B did not report a Drive file id"; log "command-board OK (publish-only)"; exit 0
+  publish || fail "phase B (publish) failed on both models"; log "command-board OK (publish-only)"; exit 0
 fi
 # 1. Collect deterministic context (also pulls satellite bundles).
 python3 "$BOARD_REPO/bin/collect_local.py" "$BOARD_REPO" >>"$LOG" 2>&1 || fail "collector failed"
@@ -62,6 +76,5 @@ log "snapshot written: $SNAP/$STAMP-$RUN.json"
 [ "${1:-}" = "--skip-publish" ] && { log "skip-publish done"; exit 0; }
 
 # 4. Phase B: upload to Drive as command-board-data, prune old docs, notify (8-minute wall clock).
-timeout_run 480 "${CMD_B[@]}" >>"$LOG" 2>&1; rc=$?; [ "$rc" = 0 ] || fail "phase B (publish) rc=$rc"
-grep -q "DRIVE_FILE_ID=" "$LOG" || fail "phase B did not report a Drive file id"
+publish || fail "phase B (publish) failed on both models"
 log "command-board OK"
