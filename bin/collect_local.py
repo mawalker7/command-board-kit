@@ -301,6 +301,10 @@ def collect_watchers(repo):
             data = json.loads(so) if so.strip() else {"items": [], "errors": [se.strip()]}
         except json.JSONDecodeError:
             data = {"items": [], "errors": [f"unparseable output: {so[:200]} {se[:200]}"]}
+        if isinstance(data, list):          # the Graph watcher emits a bare array; normalize to the Slack shape
+            data = {"items": data, "errors": []}
+        if not isinstance(data, dict):
+            data = {"items": [], "errors": [f"unexpected output type {type(data).__name__}"]}
         data["status"] = "ok" if rc == 0 else "failed"
         if se.strip() and rc == 0:
             data.setdefault("errors", []).append(se.strip()[:300])

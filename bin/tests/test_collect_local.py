@@ -76,3 +76,20 @@ class TestMemoryMirror(unittest.TestCase):
             covered = cl.mirror_memory(Path(d), {"memory_mirrors": [{"project": "ghost", "repo": str(Path(d) / "missing")}]}, time.time(), parts)
             self.assertEqual(covered, set())
             self.assertIn("mirror clone failed", "\n".join(parts))
+
+
+class TestWatchersOutputShapes(unittest.TestCase):
+    def test_watchers_accept_bare_array(self):
+        import tempfile, json
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d); (repo / "watchers").mkdir()
+            (repo / "watchers" / "slack_watch.py").write_text("import json; print(json.dumps({'items': [{'source': 's'}], 'errors': []}))")
+            (repo / "watchers" / "msgraph_watch.py").write_text("import json; print(json.dumps([{'source': 'm', 'kind': 'mail'}]))")
+            with unittest.mock.patch.object(cl, "HOME", repo):
+                cfg = repo / ".config"; (cfg / "slack-watch").mkdir(parents=True); (cfg / "msgraph-watch").mkdir(parents=True)
+                (cfg / "slack-watch" / "sources.json").write_text("{}"); (cfg / "msgraph-watch" / "sources.json").write_text("{}")
+                out = cl.collect_watchers(repo)
+            self.assertEqual(out["slack"]["status"], "ok"); self.assertEqual(out["slack"]["items"][0]["source"], "s")
+            self.assertEqual(out["msgraph"]["status"], "ok"); self.assertEqual(out["msgraph"]["items"][0]["source"], "m")
+            self.assertEqual(out["msgraph"]["errors"], [])
