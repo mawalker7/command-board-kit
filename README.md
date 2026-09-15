@@ -42,6 +42,7 @@ claude.ai artifact page ── viewer's own Drive connector (mcp capability) ─
 | `page/command-board.html` | the board page; open with `?demo` for a fictional board without Claude |
 | `docs/build-your-own-command-board.md` | a tool-agnostic guide any assistant can follow to build an equivalent |
 | `docs/slack-source-setup.md`, `docs/msgraph-setup.md`, `docs/satellite-setup.md` | adding sources and the second machine |
+| `docs/setup-session-runbook.md` | facilitating someone else's setup in one sitting |
 
 ## Quick start
 
