@@ -7,7 +7,7 @@ Built for a solo operator on macOS with Claude Code and the claude.ai connectors
 ```
 satellite Mac ──(06:40/16:40 bundle → git push)──┐
                                                  ▼
-hub Mac 07:00/17:00  collect_local.py → context/ → claude -p (phase A, summarize) → board.json
+hub Mac 06:45/16:45  collect_local.py → context/ → claude -p (phase A, summarize) → board.json
                      → board_sanitize.py → board.doc.json + board.md → snapshots (git) + ~/Downloads
                      → claude -p (phase B, publish) → Google Doc "command-board-data" (Drive connector)
                                                  ▼
@@ -22,7 +22,7 @@ claude.ai artifact page ── viewer's own Drive connector (mcp capability) ─
 - **No server, no secrets on the page.** The board page is static HTML. At open time it calls the viewer's own Google Drive connector to read the newest data document, so the page never needs republishing and holds nothing sensitive. The Docs text export escapes markdown punctuation; the page reverses that with one regex.
 - **Read-only integrations with per-consumer cursors.** The Slack and Microsoft Graph watchers hold no write scopes, keep tokens in `~/.config/*/env` (mode 600, outside the repo), and keep an independent cursor per consumer so the board run and an interactive check never steal each other's messages.
 - **A feedback loop that closes.** Tapping "Handled" writes a marker document; the next run applies it and lists it in `handled_applied`. Item ids are carried forward run to run, so marks stick.
-- **Two machines, one hub.** The satellite machine pushes a bundle of its own sessions, notes, and unpushed work into the repo twenty minutes before each hub run.
+- **Two machines, one hub.** The satellite machine pushes a bundle of its own sessions, notes, and unpushed work into the repo five minutes before each hub run.
 
 ## Layout
 
@@ -52,7 +52,7 @@ claude.ai artifact page ── viewer's own Drive connector (mcp capability) ─
 2. Attach Gmail, Google Calendar, and Google Drive (and optionally Slack) as connectors on your claude.ai account; confirm `claude mcp list` shows them.
 3. `bin/command-board --collect-only`, read `context/`, then a full `bin/command-board`.
 4. Publish `page/command-board.html` as a claude.ai artifact with the `mcp` capability granting Google Drive `search_files`, `read_file_content`, and `create_file`; pin it.
-5. `bin/install.sh hub` for the 07:00 / 17:00 schedule. On the second machine, follow `docs/satellite-setup.md`.
+5. `bin/install.sh hub` for the 06:45 / 16:45 schedule. On the second machine, follow `docs/satellite-setup.md`.
 
 Tests: `python3 -m unittest discover -s . -p 'test_*.py'`. Python 3.11+ (uses `zoneinfo`), no third-party packages; `certifi` is picked up if present for the python.org build.
 

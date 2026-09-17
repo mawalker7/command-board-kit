@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # satellite-sync — runs on the NON-hub Mac at 06:40 and 16:40: bundle local context, commit, push.
-# The hub pulls this repo before each board run, so the bundle must be pushed before 07:00 / 17:00.
+# The hub pulls this repo before each board run, so the bundle must be pushed before 06:45 / 16:45.
 set -uo pipefail
 export TZ="${TZ:-America/New_York}"   # US Eastern everywhere, regardless of the machine's clock
 export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:/Library/Frameworks/Python.framework/Versions/3.14/bin:/usr/bin:/bin"

@@ -93,3 +93,53 @@ class TestWatchersOutputShapes(unittest.TestCase):
             self.assertEqual(out["slack"]["status"], "ok"); self.assertEqual(out["slack"]["items"][0]["source"], "s")
             self.assertEqual(out["msgraph"]["status"], "ok"); self.assertEqual(out["msgraph"]["items"][0]["source"], "m")
             self.assertEqual(out["msgraph"]["errors"], [])
+
+
+class TestWhatsAppExports(unittest.TestCase):
+    def _export(self, d, name, text, when):
+        import os
+        p = Path(d) / name
+        if name.endswith(".zip"):
+            import zipfile
+            with zipfile.ZipFile(p, "w") as z:
+                z.writestr("_chat.txt", text); z.writestr("IMG-0001.jpg", b"\xff\xd8")
+        else:
+            p.write_text(text)
+        os.utime(p, (when, when))
+        return p
+
+    def test_keeps_last_week_and_continuations_across_formats(self):
+        import time
+        from datetime import datetime
+        when = datetime(2026, 9, 17, 9, 0).timestamp()
+        ios = ("[9/1/26, 8:00:00 AM] Dana: old news\n"
+               "[9/16/26, 6:15:02 PM] Dana: can you confirm the Friday walkthrough?\n"
+               "second line of that message\n"
+               "[9/16/26, 6:20:40 PM] Owner: yes\n")
+        android = "01/09/2026, 08:00 - Sam: stale\n16/09/2026, 18:15 - Sam: invoice attached\n"
+        with tempfile.TemporaryDirectory() as d:
+            self._export(d, "WhatsApp Chat - Dana.txt", ios, when)
+            self._export(d, "WhatsApp Chat - Sam.zip", android, when)
+            with unittest.mock.patch.dict("os.environ", {}, clear=False):
+                text, status = cl.collect_whatsapp(when + 60, d)
+        self.assertEqual(status, "ok")
+        self.assertIn("## Chat: Dana", text); self.assertIn("## Chat: Sam", text)
+        self.assertIn("confirm the Friday walkthrough", text); self.assertIn("second line of that message", text)
+        self.assertIn("invoice attached", text)
+        self.assertNotIn("old news", text); self.assertNotIn("stale", text)
+
+    def test_old_exports_ignored_and_missing_folder_not_configured(self):
+        import time
+        with tempfile.TemporaryDirectory() as d:
+            self._export(d, "WhatsApp Chat - Old.txt", "[9/1/26, 8:00:00 AM] Old: hi\n", time.time() - 10 * 86400)
+            text, status = cl.collect_whatsapp(time.time(), d)
+            self.assertEqual(status, "ok"); self.assertIn("no WhatsApp exports", text)
+            text, status = cl.collect_whatsapp(time.time(), Path(d) / "nope")
+            self.assertEqual(status, "not_configured")
+
+    def test_protected_folder_refused_on_scheduled_runs(self):
+        import time
+        with unittest.mock.patch.dict("os.environ", {"BOARD_SCHEDULED": "1"}), \
+             unittest.mock.patch.object(Path, "exists", return_value=True):
+            text, status = cl.collect_whatsapp(time.time(), Path.home() / "Downloads" / "wa")
+        self.assertEqual(status, "blocked")

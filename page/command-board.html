@@ -190,7 +190,7 @@
       const p = payloadOf(res);
       const files = ((typeof p === "string" ? JSON.parse(p) : p) || {}).files || [];
       files.sort((a, b) => String(b.createdTime).localeCompare(String(a.createdTime)));
-      if (!files.length) { statusCard("No board published yet", "<p>The hub has not published a <code>command-board-data</code> document to this Google account yet. Run <code>bin/command-board</code> on the hub Mac, or wait for the 07:00 / 17:00 run.</p>"); return; }
+      if (!files.length) { statusCard("No board published yet", "<p>The hub has not published a <code>command-board-data</code> document to this Google account yet. Run <code>bin/command-board</code> on the hub Mac, or wait for the 06:45 / 16:45 run.</p>"); return; }
       let lastErr = null;
       for (const f of files.slice(0, 3)) {
         try {

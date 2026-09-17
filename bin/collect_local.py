@@ -10,6 +10,7 @@ Writes small, bounded files into <repo>/context/ so the summarizing model reads 
   github.md           open PRs / review requests / mentions / assigned issues via gh (best effort)
   briefs.md           newest brief from ~/.local/share/briefs (any other scheduled report you run) + its handled.md
   downloads.md        markdown deliverables in ~/Downloads touched in the last 3 days (head only)
+  whatsapp.md         recent messages from WhatsApp chat exports dropped into ~/command-board-inbox/whatsapp
   satellite.md        bundles pushed by the other machine (data/satellite/<host>/bundle.md)
   watchers.json       slack_watch / msgraph_watch --all --consumer board --json (or not_configured)
   previous-board.json newest snapshot from data/snapshots
@@ -25,7 +26,8 @@ import socket
 import subprocess
 import sys
 import time
-from datetime import datetime
+import zipfile
+from datetime import datetime, timedelta
 from pathlib import Path
 
 HOME = Path.home()
@@ -276,6 +278,82 @@ def collect_downloads(now):
     return "\n".join(parts) or "(no markdown deliverables in ~/Downloads in the last 3 days)"
 
 
+WA_DIR_DEFAULT = HOME / "command-board-inbox" / "whatsapp"   # not under ~/Documents or ~/Downloads: launchd cannot read those
+WA_LINE = re.compile(r"^\u200e?\[?(\d{1,4})[./-](\d{1,2})[./-](\d{2,4}),? (\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp]\.?[Mm]\.?)?\]?(?: -)? ")
+WA_DAYS = 7          # messages older than this (relative to the export's own time) are history, not news
+CAP_WA_CHAT = 6_000
+CAP_WA_TOTAL = 30_000
+
+
+def wa_stamp(m, ref):
+    """Parse a WhatsApp export timestamp. Exports follow the phone's locale (M/D/Y, D/M/Y or Y-M-D), so try each
+    order and keep the reading closest to, and not after, the export time."""
+    a, b, c, hh, mm, ampm = m.groups()
+    hh = int(hh)
+    if ampm:
+        pm = ampm[0].lower() == "p"
+        hh = (hh % 12) + (12 if pm else 0)
+    orders = [(int(a), int(b), int(c))] if len(a) == 4 else [(int(c), int(a), int(b)), (int(c), int(b), int(a))]
+    best = None
+    for y, mo, d in orders:
+        y = y + 2000 if y < 100 else y
+        try:
+            t = datetime(y, mo, d, hh, int(mm))
+        except ValueError:
+            continue
+        if t <= ref + timedelta(days=1) and (best is None or t > best):
+            best = t
+    return best
+
+
+def wa_text(path):
+    """Chat text from an export: a .txt file, or the _chat.txt / *.txt inside a .zip (media files are ignored)."""
+    if path.suffix.lower() == ".zip":
+        with zipfile.ZipFile(path) as z:
+            names = [n for n in z.namelist() if n.lower().endswith(".txt")]
+            names.sort(key=lambda n: (Path(n).name != "_chat.txt", n))
+            return z.read(names[0]).decode("utf-8", errors="replace") if names else ""
+    return path.read_text(errors="replace")
+
+
+def collect_whatsapp(now, folder=None):
+    """WhatsApp has no read API for personal accounts, so the owner exports chats by hand into a folder.
+    Exports touched in the last 3 days are read; from each, only the last WA_DAYS of messages before the export."""
+    d = Path(folder or os.environ.get("BOARD_WHATSAPP_DIR") or WA_DIR_DEFAULT).expanduser()
+    if not d.exists():
+        return f"(no WhatsApp export folder at {d})", "not_configured"
+    if not readable(d):
+        return f"(WhatsApp export folder {d} resolves into a macOS-protected folder; move it)", "blocked"
+    files = [p for p in d.iterdir() if p.suffix.lower() in (".txt", ".zip") and now - p.stat().st_mtime < DAYS3]
+    parts, total = [], 0
+    for p in sorted(files, key=lambda p: p.stat().st_mtime, reverse=True):
+        ref = datetime.fromtimestamp(p.stat().st_mtime)
+        try:
+            raw = wa_text(p)
+        except (OSError, zipfile.BadZipFile) as e:
+            parts.append(f"## {p.name}\n(unreadable: {e.__class__.__name__})\n")
+            continue
+        keep, current, matched = [], False, False
+        for line in raw.splitlines():
+            m = WA_LINE.match(line)
+            if m:   # a new message; lines without a timestamp continue the previous message
+                matched = True
+                t = wa_stamp(m, ref)
+                current = t is not None and t >= ref - timedelta(days=WA_DAYS)
+            if current:
+                keep.append(line.replace("\u200e", ""))
+        if not matched:
+            keep = raw.splitlines()   # unrecognized format: fall back to the tail of the file
+        body = "\n".join(keep)[-CAP_WA_CHAT:] or "(no messages in the last 7 days of this export)"
+        chat = re.sub(r"^WhatsApp Chat (with |- )?", "", p.stem).strip() or p.stem
+        block = f"## Chat: {chat} (exported {ref.isoformat(timespec='minutes')})\n{body}\n"
+        if total + len(block) > CAP_WA_TOTAL:
+            parts.append(f"(further exports omitted: {CAP_WA_TOTAL} character cap)")
+            break
+        parts.append(block); total += len(block)
+    return ("\n".join(parts) or "(no WhatsApp exports in the last 3 days)"), "ok"
+
+
 def collect_satellite(repo):
     parts = []
     rc, so, se = sh(["git", "-C", str(repo), "pull", "--ff-only", "-q"], timeout=60)
@@ -350,6 +428,8 @@ def main(argv=None):
     step("briefs"); put("briefs.md", collect_briefs())
     step("downloads"); dl = collect_downloads(now)
     put("downloads.md", dl, "blocked" if dl.startswith("(~/Downloads") else "ok")
+    step("whatsapp"); wa, wa_status = collect_whatsapp(now)
+    put("whatsapp.md", wa, wa_status)
     step("satellite"); sat_text, sat_status = collect_satellite(repo)
     put("satellite.md", sat_text, sat_status)
     step("ics"); rc, so, se = sh([sys.executable, str(repo / "bin" / "ics_events.py"), "--hours", "48"], timeout=90)
@@ -363,7 +443,7 @@ def main(argv=None):
     snaps = sorted(glob.glob(str(repo / "data" / "snapshots" / "*.json")), key=os.path.getmtime)
     put("previous-board.json", Path(snaps[-1]).read_text() if snaps else "{}", "ok" if snaps else "none")
     # One concatenated file: the summarizer reads it in a single turn (each extra turn re-reads the growing context).
-    order = ["run.json", "sessions.json", "memory.md", "github.md", "briefs.md", "downloads.md", "satellite.md", "ics-calendar.json", "watchers.json", "previous-board.json"]
+    order = ["run.json", "sessions.json", "memory.md", "github.md", "briefs.md", "downloads.md", "whatsapp.md", "satellite.md", "ics-calendar.json", "watchers.json", "previous-board.json"]
     bundle = []
     for name in order:
         f = ctx / name

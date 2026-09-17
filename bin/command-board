@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # command-board — twice-daily cross-venture status board, run headless via Claude Code on the hub Mac.
-# Installed by launchd (launchd/com.commandboard.command-board.plist, 07:00 + 17:00 daily). Manual:
+# Installed by launchd (launchd/com.commandboard.command-board.plist, 06:45 + 16:45 daily). Manual:
 #   bin/command-board                # full run: collect → summarize (phase A) → sanitize → publish (phase B)
 #   bin/command-board --collect-only # just refresh context/ (no model calls; watchers in peek mode, cursors untouched)
 #   bin/command-board --skip-publish # phases up to the snapshot; no Drive upload

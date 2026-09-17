@@ -3,10 +3,10 @@
 <plist version="1.0"><dict>
   <key>Label</key><string>com.commandboard.command-board</string>
   <key>ProgramArguments</key><array><string>__HOME__/.local/share/command-board/bin/command-board</string></array>
-  <!-- Every day 07:00 and 17:00 local. launchd fires a missed interval on wake, unlike cron. -->
+  <!-- Every day 06:45 and 16:45 local, so the board is ready on the hour. launchd fires a missed interval on wake, unlike cron. -->
   <key>StartCalendarInterval</key><array>
-    <dict><key>Hour</key><integer>7</integer><key>Minute</key><integer>0</integer></dict>
-    <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>6</integer><key>Minute</key><integer>45</integer></dict>
+    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>45</integer></dict>
   </array>
   <!-- Pinned to US Eastern so stamps and the AM/PM decision never follow a travelling Mac's clock. -->
   <key>EnvironmentVariables</key><dict><key>TZ</key><string>America/New_York</string><key>BOARD_SCHEDULED</key><string>1</string></dict>

@@ -1,6 +1,6 @@
 # Satellite setup: give a second machine's context to the hub
 
-**Give this file to Claude Code (or any agent) on the non-hub machine.** The hub runs the board at 07:00 and 17:00 and reads a bundle this machine pushes twenty minutes earlier. No model call is involved; the satellite job is a plain script.
+**Give this file to Claude Code (or any agent) on the non-hub machine.** The hub runs the board at 06:45 and 16:45 and reads a bundle this machine pushes twenty minutes earlier. No model call is involved; the satellite job is a plain script.
 
 ## What the satellite sends
 A markdown bundle plus a JSON list of sessions, committed to `data/satellite/<this hostname>/` in your private board repo:

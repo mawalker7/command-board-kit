@@ -10,6 +10,7 @@ Read `bundle.md` ONCE with the Read tool: it contains every file below, concaten
 - `github.md`: open PRs, review requests, mentions, assigned issues.
 - `briefs.md`: any other scheduled briefs the collector picks up (optional; roll their actions into one or two items rather than copying them).
 - `downloads.md`: recent markdown deliverables (status boards, handoffs, proposals). The newest status-board file, if any, is a strong signal of current priorities.
+- `whatsapp.md`: recent messages from WhatsApp chats the owner exported by hand (one `## Chat:` block per chat, the last 7 days before each export). Route each chat to a line by its people and content using lines.json; a personal chat with no work or family-logistics implication produces no item. Use source_kind `whatsapp` and source_url null. Status `not_configured` means no export folder; report it in run_health once, nothing more.
 - `satellite.md`: the same kinds of context bundled from the owner's other machine. Sessions listed there belong to that machine; keep their `machine` field.
 - `watchers.json`: new messages from read-only watchers (Slack workspaces the connector cannot reach, Microsoft Teams/Outlook). A watcher with status `not_configured` is reported in run_health as "not configured", nothing more.
 
@@ -27,7 +28,7 @@ One thing the owner would want to see on a phone in five seconds. States:
 - `waiting`: the ball is in someone else's court. Owner is "them:<Name>" (first name or first+last as known). Include what was asked and when.
 - `moving`: in progress and not blocked on the owner (a Claude session is working it, a PR is in CI, a partner is executing). Owner "claude" or "them:<Name>" or "you".
 - `parked`: deliberately dormant or waiting on a date far out. Keep parked items rare and short.
-Rules: title ≤ 100 characters, imperative for needs_you ("Send Rob the pricing one-pager"). Synopsis 2 or 3 plain sentences: what it is, what changed since the previous run, what happens next, with absolute dates. `source_url` is a real URL you saw (mail thread link, PR, doc, Slack permalink) or null. `source_kind` is one of email, calendar, slack, teams, github, memory, session, satellite, brief, note. `due` is YYYY-MM-DD or null. `updated` is the ISO time of the newest evidence you used. Cap 8 items per line; prefer fewer, sharper items. Headline per line: one sentence on where the line stands today. A line with nothing new keeps its previous items with unchanged synopses; do not pad.
+Rules: title ≤ 100 characters, imperative for needs_you ("Send Rob the pricing one-pager"). Synopsis 2 or 3 plain sentences: what it is, what changed since the previous run, what happens next, with absolute dates. `source_url` is a real URL you saw (mail thread link, PR, doc, Slack permalink) or null. `source_kind` is one of email, calendar, slack, teams, github, memory, session, satellite, whatsapp, brief, note. `due` is YYYY-MM-DD or null. `updated` is the ISO time of the newest evidence you used. Cap 8 items per line; prefer fewer, sharper items. Headline per line: one sentence on where the line stands today. A line with nothing new keeps its previous items with unchanged synopses; do not pad.
 
 ## Voice and facts (override anything you infer)
 Read `../config/persona.md` and apply it. It states who the owner is to each business line and how people are addressed. Also:
@@ -44,11 +45,11 @@ Read `../config/persona.md` and apply it. It states who the owner is to each bus
   "lines": [
     {"id": "<line id>", "headline": "<one sentence>", "items": [
       {"id": "<line-id>-<slug>", "state": "needs_you|waiting|moving|parked", "title": "...", "synopsis": "...",
-       "source_url": "https://... or null", "source_kind": "email|calendar|slack|teams|github|memory|session|satellite|brief|note",
+       "source_url": "https://... or null", "source_kind": "email|calendar|slack|teams|github|memory|session|satellite|whatsapp|brief|note",
        "owner": "you|claude|them:<Name>", "due": "YYYY-MM-DD or null", "updated": "<ISO>",
        "sessions": [{"name": "<session name>", "machine": "<hostname>", "first_prompt": "<≤120 chars>"}]}
     ]}
   ],
-  "run_health": [{"input": "gmail|calendar|slack-connector|drive-handled|watchers|satellite|github|memory", "status": "ok|failed|not_configured|not_checked", "detail": "<short reason or counts>"}]
+  "run_health": [{"input": "gmail|calendar|slack-connector|drive-handled|watchers|satellite|whatsapp|github|memory", "status": "ok|failed|not_configured|not_checked", "detail": "<short reason or counts>"}]
 }
 Include every line from lines.json, in that order, even when its items list is empty. After writing the file, end with ONE line: `board.json written: <N> items, <M> needs_you`.
