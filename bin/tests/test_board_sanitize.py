@@ -92,3 +92,27 @@ class TestSanitize(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPausedLine(unittest.TestCase):
+    def test_paused_line_capped_and_headline_forced(self):
+        cfg = {"lines": [dict(l) for l in LINES["lines"]]}
+        cfg["lines"][1]["paused"] = {"since": "2026-10-26", "resume_when": ["the contract moves", "the partner is back"]}
+        b = board()
+        b["lines"][0]["items"] = [{"id": f"orchard-n{i}", "state": "needs_you", "title": "t", "synopsis": "s"} for i in range(6)]
+        out, _ = bs.sanitize(b, cfg)
+        line = out["lines"][1]
+        self.assertEqual(len(line["items"]), bs.MAX_ITEMS_PAUSED)
+        self.assertEqual(line["counts"]["needs_you"], bs.MAX_ITEMS_PAUSED)
+        self.assertEqual(line["headline"], "Paused since 2026-10-26; resumes when the contract moves and the partner is back.")
+
+    def test_paused_headline_kept_when_model_already_says_paused(self):
+        cfg = {"lines": [dict(l) for l in LINES["lines"]]}
+        cfg["lines"][1]["paused"] = {"since": "2026-10-26", "resume_when": ["x"]}
+        b = board(); b["lines"][0]["headline"] = "Paused; contract call moved to Friday"
+        out, _ = bs.sanitize(b, cfg)
+        self.assertEqual(out["lines"][1]["headline"], "Paused; contract call moved to Friday")
+
+    def test_unpaused_line_unchanged(self):
+        out, _ = bs.sanitize(board(), LINES)
+        self.assertEqual(len(out["lines"][1]["items"]), 2)

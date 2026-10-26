@@ -22,6 +22,7 @@ STATES = ("needs_you", "waiting", "moving", "parked")
 STATE_LABEL = {"needs_you": "Needs you", "waiting": "Waiting on them", "moving": "Moving", "parked": "Parked"}
 ID_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 MAX_TITLE, MAX_SYNOPSIS, MAX_ITEMS_PER_LINE, MAX_BYTES = 120, 420, 12, 60_000
+MAX_ITEMS_PAUSED = 3   # a paused line (lines.json "paused") shows only what bears on resuming it
 
 
 class ValidationError(Exception):
@@ -48,6 +49,7 @@ def sanitize(board, lines_cfg):
     except ValueError:
         raise ValidationError("generated_at must be ISO 8601")
     canonical = [(l["id"], l["name"]) for l in lines_cfg["lines"]]
+    paused = {l["id"]: l["paused"] for l in lines_cfg["lines"] if isinstance(l.get("paused"), dict)}
     by_id = {l.get("id"): l for l in board.get("lines", []) if isinstance(l, dict)}
     unknown = set(by_id) - {i for i, _ in canonical}
     if unknown:
@@ -94,8 +96,14 @@ def sanitize(board, lines_cfg):
         if len(items) > MAX_ITEMS_PER_LINE:
             keep = [i for i in items if i["state"] != "parked"][:MAX_ITEMS_PER_LINE]
             items = keep + [i for i in items if i["state"] == "parked"][: MAX_ITEMS_PER_LINE - len(keep)]
+        headline = clean_str(src.get("headline"), 140)
+        if lid in paused:   # deterministic backstop: the prompt asks for this, the sanitizer guarantees it
+            items = items[:MAX_ITEMS_PAUSED]
+            if not headline.lower().startswith("paused"):
+                p = paused[lid]
+                headline = clean_str(f"Paused since {p.get('since', '?')}; resumes when {' and '.join(p.get('resume_when', [])) or 'the owner says so'}.", 140)
         counts = {s: sum(1 for i in items if i["state"] == s) for s in STATES}
-        out_lines.append({"id": lid, "name": name, "headline": clean_str(src.get("headline"), 140), "counts": counts, "items": items})
+        out_lines.append({"id": lid, "name": name, "headline": headline, "counts": counts, "items": items})
     health = []
     for h in board.get("run_health", []) or []:
         if isinstance(h, dict):
