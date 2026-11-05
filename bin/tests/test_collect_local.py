@@ -143,3 +143,29 @@ class TestWhatsAppExports(unittest.TestCase):
              unittest.mock.patch.object(Path, "exists", return_value=True):
             text, status = cl.collect_whatsapp(time.time(), Path.home() / "Downloads" / "wa")
         self.assertEqual(status, "blocked")
+
+
+class TestIgnoredProjects(unittest.TestCase):
+    def test_memory_of_ignored_project_not_read(self):
+        import time
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "projects"
+            for name in ("-Users-me-code-keep", "-Users-me-code-oldco"):
+                (root / name / "memory").mkdir(parents=True)
+                (root / name / "memory" / "MEMORY.md").write_text(f"index of {name}")
+            with unittest.mock.patch.object(cl, "CLAUDE", Path(d)):
+                text = cl.collect_memory(time.time(), Path(d), {"ignore_projects": ["oldco"]})
+        self.assertIn("index of -Users-me-code-keep", text)
+        self.assertNotIn("oldco", text)
+
+    def test_sessions_of_ignored_project_not_listed(self):
+        import time
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "projects"
+            for name in ("-Users-me-code-keep", "-Users-me-code-oldco"):
+                (root / name).mkdir(parents=True)
+                (root / name / "abcd1234.jsonl").write_text('{"type":"user","message":{"content":"hello"}}\n')
+            (Path(d) / "sessions").mkdir()
+            with unittest.mock.patch.object(cl, "CLAUDE", Path(d)):
+                out = cl.collect_sessions(time.time(), {"ignore_projects": ["oldco"]})
+        self.assertEqual([s["project"] for s in out], ["keep"])

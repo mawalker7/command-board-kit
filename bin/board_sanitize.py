@@ -51,9 +51,11 @@ def sanitize(board, lines_cfg):
     canonical = [(l["id"], l["name"]) for l in lines_cfg["lines"]]
     paused = {l["id"]: l["paused"] for l in lines_cfg["lines"] if isinstance(l.get("paused"), dict)}
     by_id = {l.get("id"): l for l in board.get("lines", []) if isinstance(l, dict)}
-    unknown = set(by_id) - {i for i, _ in canonical}
-    if unknown:
-        raise ValidationError(f"unknown line ids: {sorted(unknown)}")
+    # A line removed from lines.json (a retired venture) may still come back from the model via previous-board
+    # carry-forward. Drop it and say so in run_health rather than fail the run.
+    unknown = sorted(set(by_id) - {i for i, _ in canonical})
+    dropped_lines = [{"input": f"line:{u}", "status": "dropped",
+                      "detail": f"not in lines.json; {len(by_id[u].get('items') or [])} item(s) discarded"} for u in unknown]
     seen_ids = set()
     out_lines = []
     for lid, name in canonical:
@@ -104,7 +106,7 @@ def sanitize(board, lines_cfg):
                 headline = clean_str(f"Paused since {p.get('since', '?')}; resumes when {' and '.join(p.get('resume_when', [])) or 'the owner says so'}.", 140)
         counts = {s: sum(1 for i in items if i["state"] == s) for s in STATES}
         out_lines.append({"id": lid, "name": name, "headline": headline, "counts": counts, "items": items})
-    health = []
+    health = list(dropped_lines)
     for h in board.get("run_health", []) or []:
         if isinstance(h, dict):
             health.append({"input": clean_str(h.get("input"), 40), "status": clean_str(h.get("status"), 16) or "unknown",

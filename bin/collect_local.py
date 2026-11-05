@@ -119,8 +119,15 @@ def pid_alive(pid):
         return False
 
 
-def collect_sessions(now):
+def ignored_projects(cfg):
+    """lines.json `ignore_projects`: project folder names (as project_name() returns them) the board never reads,
+    e.g. a venture the owner has left. Applies to sessions and memory alike."""
+    return set((cfg or {}).get("ignore_projects", []) or [])
+
+
+def collect_sessions(now, cfg=None):
     host = socket.gethostname()
+    skip = ignored_projects(cfg)
     live = {}
     for f in glob.glob(str(CLAUDE / "sessions" / "*.json")):
         try:
@@ -135,6 +142,8 @@ def collect_sessions(now):
         for jsonl in glob.glob(os.path.join(proj_dir, "*.jsonl")):
             sid = Path(jsonl).stem
             project = project_name(proj_dir, live.get(sid, {}).get("cwd", ""))
+            if project in skip:
+                continue
             mtime = os.path.getmtime(jsonl)
             is_live = sid in live
             if not is_live and now - mtime > 86400:
@@ -202,8 +211,8 @@ def collect_memory(now, repo=None, cfg=None):
     covered = mirror_memory(repo, cfg, now, parts) if (repo is not None and cfg) else set()
     for mem in sorted(glob.glob(str(CLAUDE / "projects" / "*" / "memory"))):
         project = project_name(Path(mem).parent)
-        if project in covered:
-            continue  # served by the git mirror above
+        if project in covered or project in ignored_projects(cfg):
+            continue  # served by the git mirror above, or deliberately not read
         if not readable(mem):
             parts.append(f"# Memory index: {project}\n(not read on scheduled runs: folder resolves into a macOS-protected location)\n")
             continue
@@ -418,10 +427,10 @@ def main(argv=None):
         manifest["inputs"][name] = {"status": status, "bytes": len(text.encode()), "detail": detail}
 
     put("run.json", json.dumps(run, indent=1))
-    step("sessions"); sessions = collect_sessions(now)
-    put("sessions.json", json.dumps(sessions, indent=1), detail=f"{sum(1 for s in sessions if s['status']=='live')} live")
     cfg_path = repo / "config" / "lines.json"
     cfg = json.loads(cfg_path.read_text()) if cfg_path.exists() else {}
+    step("sessions"); sessions = collect_sessions(now, cfg)
+    put("sessions.json", json.dumps(sessions, indent=1), detail=f"{sum(1 for s in sessions if s['status']=='live')} live")
     step("memory"); put("memory.md", collect_memory(now, repo, cfg))
     step("github"); gh_text, gh_status = collect_github()
     put("github.md", gh_text, gh_status)

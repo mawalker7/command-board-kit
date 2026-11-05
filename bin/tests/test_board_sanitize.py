@@ -48,9 +48,9 @@ class TestSanitize(unittest.TestCase):
         b = board(); b["lines"][0]["items"][1]["id"] = "orchard-guest-debrief"
         with self.assertRaises(bs.ValidationError):
             bs.sanitize(b, LINES)
-        b = board(); b["lines"][0]["id"] = "nope"
-        with self.assertRaises(bs.ValidationError):
-            bs.sanitize(b, LINES)
+        b = board(); b["lines"][0]["id"] = "nope"   # a retired line is dropped and reported, not fatal (see TestRetiredLine)
+        out, _ = bs.sanitize(b, LINES)
+        self.assertEqual(out["run_health"][0]["input"], "line:nope")
         b = board(); b["lines"][0]["items"][0]["state"] = "urgent"
         with self.assertRaises(bs.ValidationError):
             bs.sanitize(b, LINES)
@@ -116,3 +116,15 @@ class TestPausedLine(unittest.TestCase):
     def test_unpaused_line_unchanged(self):
         out, _ = bs.sanitize(board(), LINES)
         self.assertEqual(len(out["lines"][1]["items"]), 2)
+
+
+class TestRetiredLine(unittest.TestCase):
+    def test_unknown_line_dropped_and_reported_not_fatal(self):
+        b = board()
+        b["lines"].append({"id": "oldco", "headline": "gone", "items": [
+            {"id": "oldco-x", "state": "waiting", "title": "x", "synopsis": "s"},
+            {"id": "oldco-y", "state": "parked", "title": "y", "synopsis": "s"}]})
+        out, _ = bs.sanitize(b, LINES)
+        self.assertEqual([l["id"] for l in out["lines"]], [l["id"] for l in LINES["lines"]])
+        self.assertIn({"input": "line:oldco", "status": "dropped", "detail": "not in lines.json; 2 item(s) discarded"}, out["run_health"])
+        self.assertEqual(len(out["lines"][1]["items"]), 2)   # the surviving line is untouched
