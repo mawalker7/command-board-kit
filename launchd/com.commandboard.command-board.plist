@@ -10,7 +10,7 @@
   </array>
   <!-- Pinned to US Eastern so stamps and the AM/PM decision never follow a travelling Mac's clock. -->
   <key>EnvironmentVariables</key><dict><key>TZ</key><string>America/New_York</string><key>BOARD_SCHEDULED</key><string>1</string></dict>
-  <key>RunAtLoad</key><false/>
+  <key>RunAtLoad</key><true/>   <!-- runs at login; the wrapper's catch-up guard exits at once unless a slot was missed -->
   <key>StandardOutPath</key><string>__HOME__/Library/Logs/command-board/launchd.out.log</string>
   <key>StandardErrorPath</key><string>__HOME__/Library/Logs/command-board/launchd.err.log</string>
 </dict></plist>

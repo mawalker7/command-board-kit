@@ -56,6 +56,27 @@ CMD_B=(claude -p "$(cat "$CFG/prompt-publish.md")" --model "$BOARD_MODEL_B" --ef
 CMD_B_FALLBACK=(claude -p "$(cat "$CFG/prompt-publish.md")" --model "$BOARD_MODEL" --effort "$BOARD_EFFORT" --max-budget-usd "$BOARD_BUDGET_B" --max-turns "$BOARD_MAX_TURNS_B" --output-format text --allowedTools "$TOOLS_B")
 if [ "${1:-}" = "--dry-run" ]; then printf '%q ' "${CMD_A[@]}" | cut -c1-300; echo " …"; exit 0; fi
 
+# Catch-up guard. LaunchAgents live only inside a login session: a logout (or a WindowServer restart) before a slot
+# means the calendar trigger fires into nothing and the slot is simply lost. RunAtLoad=true makes launchd start this
+# wrapper at every login; this guard then runs the board only if the most recent slot has no snapshot yet, so an
+# ordinary login costs nothing. Calendar runs always pass (their slot has no snapshot yet).
+# To force a run for proof: `touch .state/force-next` then `launchctl kickstart -k gui/$(id -u)/<label>`.
+BOARD_SLOTS="${BOARD_SLOTS:-0645 1645}"   # HHMM local, ascending; keep in step with the launchd plist
+slot_served() {
+  local hhmm slot_day slot_hm="" s newest slot_epoch
+  hhmm=$(date +%H%M); slot_day=$(date +%F)
+  for s in $BOARD_SLOTS; do [ "$hhmm" -ge "$s" ] && slot_hm=$s; done
+  if [ -z "$slot_hm" ]; then slot_day=$(date -v-1d +%F); for s in $BOARD_SLOTS; do slot_hm=$s; done; fi
+  slot_epoch=$(date -j -f "%Y-%m-%d %H%M" "$slot_day $slot_hm" +%s) || return 1
+  newest=$(ls -t "$SNAP"/*.json 2>/dev/null | head -1); [ -n "$newest" ] || return 1
+  [ "$(stat -f %m "$newest")" -ge "$slot_epoch" ] && { echo "$newest"; return 0; }
+  return 1
+}
+if [ $# -eq 0 ]; then
+  if [ -f "$BOARD_REPO/.state/force-next" ]; then rm -f "$BOARD_REPO/.state/force-next"; echo "[$(date -u +%FT%TZ)] force-next marker consumed"
+  elif served=$(slot_served); then echo "[$(date -u +%FT%TZ)] slot already served by $(basename "$served"); nothing to do"; exit 0
+  else echo "[$(date -u +%FT%TZ)] slot not yet served; running (scheduled or catch-up)"; fi
+fi
 log "command-board START ($RUN run, models A=$BOARD_MODEL B=$BOARD_MODEL_B, effort=$BOARD_EFFORT)"
 if [ "${1:-}" = "--publish-only" ]; then
   [ -s "$CTX/board.doc.json" ] || fail "no context/board.doc.json to publish"
